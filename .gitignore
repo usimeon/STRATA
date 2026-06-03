@@ -1,0 +1,21 @@
+# Build output
+/build/
+**/STRATA_artefacts/
+
+# Vendored dependency (clone separately or use the FetchContent block in CMakeLists.txt)
+/JUCE/
+
+# macOS
+.DS_Store
+*.swp
+
+# IDE
+.vscode/
+.idea/
+*.xcodeproj
+*.user
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
