@@ -176,7 +176,7 @@ namespace strata::ui
                 gain.onValueChange = [this]
                 {
                     link::InstanceRegistry::getInstance().setRemoteParameter (
-                        uuid, params::outputGain, (float) gain.getValue());
+                        uuid, params::inputGain, (float) gain.getValue());
                 };
                 addAndMakeVisible (gain);
 
@@ -228,6 +228,18 @@ namespace strata::ui
                 vu.setBounds (r.removeFromTop (juce::jlimit (60, 96, r.getHeight() * 2 / 5)));
                 r.removeFromTop (4);
                 gain.setBounds (r);
+                faderBg = r.toFloat(); // tinted by input-gain health
+            }
+
+            // Gain-staging "health" of the INPUT level feeding downstream plugins.
+            // Ranges are deliberately conservative for live streaming; tweak freely.
+            static juce::Colour healthColour (float inputPeakDb) noexcept
+            {
+                if (inputPeakDb >= 0.0f)  return juce::Colour (0xffe5484d); // RED  : clipping / too hot
+                if (inputPeakDb >= -3.0f) return juce::Colour (0xffe2b341); // AMBER: hot, watch it
+                if (inputPeakDb >= -9.0f) return juce::Colour (0xff3fb86b); // GREEN: healthy
+                if (inputPeakDb >= -24.0f)return juce::Colour (0xff4178d6); // BLUE : a bit low
+                return juce::Colour (0xff5b5f6b);                           // GREY : little/no signal
             }
 
             void paint (juce::Graphics& g) override
@@ -251,6 +263,15 @@ namespace strata::ui
                 for (int gx = 0; gx < 2; ++gx)
                     for (int gy = 0; gy < 3; ++gy)
                         g.fillEllipse (6.0f + (float) gx * 4.0f, 10.0f + (float) gy * 4.0f, 2.0f, 2.0f);
+
+                // gain-staging health wash behind the fader (volunteer-friendly:
+                // green = good input level, amber/red = too hot, blue/grey = low)
+                const auto hc = healthColour (healthHeldDb);
+                g.setGradientFill (juce::ColourGradient (hc.withAlpha (0.42f), faderBg.getCentreX(), faderBg.getY(),
+                                                         hc.withAlpha (0.14f), faderBg.getCentreX(), faderBg.getBottom(), false));
+                g.fillRoundedRectangle (faderBg, 4.0f);
+                g.setColour (hc.withAlpha (0.7f));
+                g.drawRoundedRectangle (faderBg.reduced (0.5f), 4.0f, 1.0f);
             }
 
             // Pulled from the live instance each tick (message thread).
@@ -269,10 +290,18 @@ namespace strata::ui
                 const bool  cl  = showInput ? c->getInputClip()   : c->getOutputClip();
                 vu.setValues (rms, pk, pk, cl);
 
+                // Health wash tracks the INPUT level (what feeds downstream), with
+                // a peak-hold so the colour doesn't flicker between zones: it snaps
+                // up instantly, holds ~1.25 s, then eases down (~12 dB/s).
+                healthDb = c->getInputPeakDb();
+                if (healthDb >= healthHeldDb)   { healthHeldDb = healthDb; healthHold = kHealthHoldFrames; }
+                else if (healthHold > 0)        { --healthHold; }
+                else                            { healthHeldDb = juce::jmax (healthDb, healthHeldDb - kHealthReleaseDb); }
+
                 // Never write to the fader while the user is dragging/editing it.
                 if (! editing)
                 {
-                    const float gv = c->getParamValue (params::outputGain);
+                    const float gv = c->getParamValue (params::inputGain);
                     if (std::abs ((float) gain.getValue() - gv) > 0.001f)
                         gain.setValue (gv, juce::dontSendNotification);
                 }
@@ -294,6 +323,12 @@ namespace strata::ui
             VuMeter          vu;
             int              linkId = 0;
             int              targetMeterType = 0;
+            float            healthDb = -100.0f;     // instantaneous input peak
+            float            healthHeldDb = -100.0f; // peak-held value used for colour
+            int              healthHold = 0;         // frames remaining at the held peak
+            static constexpr int   kHealthHoldFrames = 30;  // ~1.25 s at 24 Hz
+            static constexpr float kHealthReleaseDb  = 0.5f; // dB/frame after hold (~12 dB/s)
+            juce::Rectangle<float> faderBg;          // tinted background behind fader
             juce::uint32 accent = 0xff8a94a3; // bucket colour
             bool  editing = false; // true while the user drags this fader
             bool  isSelf  = false; // the instance whose window is open

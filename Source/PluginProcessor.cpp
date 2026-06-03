@@ -264,7 +264,7 @@ float StrataProcessor::getVuReferenceDb() const
         return params::meterTypeFixedRefDb (t);
     if (auto* raw = apvts.getRawParameterValue (params::vuCal))
         return raw->load();                  // user calibration (drag the meter)
-    return -18.0f;
+    return -24.0f;
 }
 
 //============================================================================

@@ -63,7 +63,7 @@ namespace strata::params
         // 0 VU calibration point in dBFS — drag the meter to set it.
         layout.add (std::make_unique<AudioParameterFloat> (
             ParameterID { vuCal, 1 }, "VU Calibration",
-            NormalisableRange<float> (-30.0f, -6.0f, 0.5f), -18.0f,
+            NormalisableRange<float> (-30.0f, -6.0f, 0.5f), -24.0f,
             AudioParameterFloatAttributes().withLabel ("dBFS")));
 
         layout.add (std::make_unique<AudioParameterChoice> (

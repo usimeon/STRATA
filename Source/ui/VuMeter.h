@@ -223,7 +223,7 @@ namespace strata::ui
         }
 
         juce::String label = "VU";
-        float referenceDb = -18.0f, scaleOffset = 0.0f, dragStartRef = -18.0f;
+        float referenceDb = -24.0f, scaleOffset = 0.0f, dragStartRef = -24.0f;
         float needle = 0.0f, holdNeedle = 0.0f, peak = -100.0f, hold = -100.0f;
         bool  clipped = false, compact = false, dragged = false;
     };
