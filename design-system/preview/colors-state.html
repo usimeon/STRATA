@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:var(--bg);font-family:var(--font-sans);}
+  .wrap{padding:18px 20px;}
+  .row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  .sw{border-radius:var(--r-cap);overflow:hidden;border:var(--hairline);}
+  .chip{height:58px;}
+  .meta{padding:7px 9px;background:var(--panel);}
+  .name{font:var(--t-label);color:var(--fg);letter-spacing:.03em;text-transform:none;}
+  .hex{font:var(--t-readout);color:var(--fg-dim);margin-top:2px;font-variant-numeric:tabular-nums;}
+  .use{font:var(--t-readout);color:var(--fg-dim);margin-top:2px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="row">
+    <div class="sw"><div class="chip" style="background:var(--accent)"></div><div class="meta"><div class="name">accent · teal</div><div class="hex">#36C1A6</div><div class="use">brand · value arc</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--link)"></div><div class="meta"><div class="name">link · blue</div><div class="hex">#5B8CFF</div><div class="use">linked state</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--warn)"></div><div class="meta"><div class="name">warn · amber</div><div class="hex">#E2B341</div><div class="use">bypass · hot</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--clip)"></div><div class="meta"><div class="name">clip · red</div><div class="hex">#E5484D</div><div class="use">mute · over</div></div></div>
+  </div>
+</div>
+</body>
+</html>

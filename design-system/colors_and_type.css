@@ -1,0 +1,116 @@
+/* ============================================================================
+   STRATA — Design Tokens
+   Source of truth: usimeon/STRATA  ->  Source/ui/LookAndFeel.h (Theme),
+   Source/ui/VuMeter.h (Face), Source/ui/ChannelView.h (health wash + bucket),
+   Source/link/InstanceRegistry.cpp (bucket palette).
+
+   STRATA is a dark, stage-readable VST3/AU channel-strip plugin built on JUCE 8.
+   The UI is "High contrast, large hit targets, no gloss." Everything is small —
+   this is a plugin window (default 360x520), not a web page. Scale type/spacing
+   accordingly when building plugin-faithful mockups.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ---- Core theme (Source/ui/LookAndFeel.h :: Theme) ---------------------- */
+  --bg:        #14171c;  /* window background */
+  --panel:     #1d222a;  /* raised panel / name field / active tab */
+  --stroke:    #2c333d;  /* hairline borders, knob track */
+  --fg:        #e7ecf2;  /* primary text */
+  --fg-dim:    #8a94a3;  /* secondary text, inactive labels, grip dots */
+  --accent:    #36c1a6;  /* teal — brand accent, knob value arc, "self" highlight */
+  --link:      #5b8cff;  /* blue — linked / channel-view-active state */
+  --warn:      #e2b341;  /* amber — bypass on, "hot" warning */
+  --clip:      #e5484d;  /* red — mute on, clip / over */
+  --vu-needle: #f2e9d8;  /* warm off-white (legacy needle reference) */
+
+  /* ---- Analog VU face (Source/ui/VuMeter.h :: Face) ----------------------- */
+  --vu-bezel:    #0d0d0f;  /* near-black bezel around the dial */
+  --vu-cream-hi: #f3ecd9;  /* dial face gradient top */
+  --vu-cream-lo: #d8cdb0;  /* dial face gradient bottom */
+  --vu-ink:      #2c2822;  /* scale arc, ticks, numbers, needle hub */
+  --vu-ink-dim:  #6b6354;  /* type label, faint marks */
+  --vu-red:      #b23a2c;  /* red zone arc + over ticks (0..+3 VU) */
+  --vu-needle-k: #1b1814;  /* the moving needle (near black) */
+  --vu-hold:     #e08a1e;  /* orange peak-hold needle */
+  --vu-led-off:  #3a2420;  /* clip LED, idle */
+  --vu-led-on:   #e5483d;  /* clip LED, latched over */
+
+  /* ---- Gain-staging health wash (ChannelView Column::healthColour) -------- */
+  /* Volunteer aid: fader background tints by output level (peak-held). */
+  --health-red:   #e5484d;  /* >= 0 dBFS   : clipping / too hot   */
+  --health-amber: #e2b341;  /* -3..0 dBFS  : hot, watch it        */
+  --health-green: #3fb86b;  /* -9..-3 dBFS : healthy gain stage   */
+  --health-blue:  #4178d6;  /* -24..-9 dBFS: a bit low            */
+  --health-grey:  #5b5f6b;  /* below -24   : little / no signal   */
+
+  /* ---- Bucket palette — 8 stage-readable hues (InstanceRegistry) --------- */
+  --bucket-0: #8a94a3;  /* No Group / neutral grey */
+  --bucket-1: #5b8cff;  /* blue   */
+  --bucket-2: #36c1a6;  /* teal   */
+  --bucket-3: #e2b341;  /* amber  */
+  --bucket-4: #e5684d;  /* red-orange */
+  --bucket-5: #a56bff;  /* purple */
+  --bucket-6: #4db6e5;  /* cyan   */
+  --bucket-7: #8bc34a;  /* green  */
+  --bucket-8: #ff8a65;  /* coral  */
+
+  /* ---- Brushed-aluminium fader cap (LookAndFeel.h drawMetalCap) ---------- */
+  --metal-0: #e7e7ea;  /* cap top    (0.00) */
+  --metal-1: #d2d2d6;  /* 0.10 */
+  --metal-2: #b6b6bc;  /* 0.48 */
+  --metal-3: #9fa0a6;  /* 0.52 (center index break) */
+  --metal-4: #8b8b91;  /* 0.90 */
+  --metal-5: #7e7e85;  /* cap bottom (1.00) */
+  --metal-groove: #3c3c40; /* central index slot */
+
+  /* ---- Typography -------------------------------------------------------- */
+  /* JUCE: setDefaultSansSerifTypefaceName("Inter"). One family, weights only. */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-num:  'Inter', ui-monospace, sans-serif; /* meter readouts: tabular figures */
+
+  /* Plugin-scale type ramp (px = on-screen size in the real plugin) */
+  --t-wordmark: 700 16px/1 var(--font-sans);  /* "STRATA" brand mark, teal */
+  --t-tab-num:  700 13px/1 var(--font-sans);  /* bucket tab number */
+  --t-label:    700 11px/1 var(--font-sans);  /* meter-type label, button caps */
+  --t-name:     400 13px/1.2 var(--font-sans);/* channel name field */
+  --t-tab-name: 400 10.5px/1.2 var(--font-sans);
+  --t-scale:    400 10px/1 var(--font-num);   /* VU scale numbers */
+  --t-readout:  400 9px/1 var(--font-num);    /* dB readouts, fader marks */
+
+  /* ---- Radii (from the JUCE fillRoundedRectangle calls) ------------------ */
+  --r-vu:      7px;  /* VU bezel (4px compact) */
+  --r-column:  5px;  /* channel column card */
+  --r-cap:     3px;  /* fader cap, swatches, tabs accent */
+  --r-wash:    4px;  /* health wash behind fader */
+  --r-sm:      2px;  /* peak bar, tiny chips */
+
+  /* ---- Borders & elevation ---------------------------------------------- */
+  --hairline: 1px solid var(--stroke);
+  --divider:  rgba(0,0,0,0.4);            /* tab/column dividers */
+  --cap-shadow: 0 2px 3px rgba(0,0,0,0.45);    /* fader cap drop shadow */
+  --led-glow:  0 0 6px rgba(229,72,61,0.5);    /* clip LED bloom when over */
+}
+
+/* ---- Semantic element styles (plugin-faithful defaults) ------------------ */
+.strata-surface { background: var(--bg); color: var(--fg); font-family: var(--font-sans); }
+.strata-panel   { background: var(--panel); border-radius: var(--r-column); }
+.strata-wordmark{ font: var(--t-wordmark); color: var(--accent); letter-spacing: 0.06em; }
+.strata-label   { font: var(--t-label); color: var(--fg-dim); letter-spacing: 0.04em; text-transform: uppercase; }
+.strata-readout { font: var(--t-readout); color: var(--fg); font-variant-numeric: tabular-nums; }
+
+/* Toggle buttons: off = panel + hairline; on = state color fill.
+   ON colors per surface: BYPASS->warn, MUTE->clip, CH VIEW/LINK->link,
+   IN/OUT->warn, generic toggle->accent. */
+.strata-btn {
+  font: var(--t-label); letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--fg); background: var(--panel);
+  border: var(--hairline); border-radius: var(--r-cap);
+  padding: 6px 10px; cursor: pointer; transition: background 90ms ease, color 90ms ease;
+}
+.strata-btn:hover    { background: #232a33; }
+.strata-btn--on      { color: #11140f; background: var(--accent); border-color: transparent; }
+.strata-btn--bypass  { color: #1a160a; background: var(--warn); border-color: transparent; }
+.strata-btn--mute    { color: #fff; background: var(--clip); border-color: transparent; }
+.strata-btn--link    { color: #fff; background: var(--link); border-color: transparent; }

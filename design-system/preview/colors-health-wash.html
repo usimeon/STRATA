@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:var(--bg);font-family:var(--font-sans);}
+  .wrap{padding:18px 20px;}
+  .scale{display:flex;border-radius:var(--r-cap);overflow:hidden;border:var(--hairline);}
+  .seg{flex:1;height:54px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;}
+  .seg span{font:var(--t-readout);color:rgba(0,0,0,.55);font-weight:700;font-variant-numeric:tabular-nums;}
+  .labels{display:flex;margin-top:8px;}
+  .lab{flex:1;text-align:center;}
+  .lab .t{font:var(--t-label);letter-spacing:.03em;text-transform:none;}
+  .lab .r{font:var(--t-readout);color:var(--fg-dim);margin-top:2px;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="scale">
+    <div class="seg" style="background:var(--health-grey)"><span>·</span></div>
+    <div class="seg" style="background:var(--health-blue)"><span>LOW</span></div>
+    <div class="seg" style="background:var(--health-green)"><span>GOOD</span></div>
+    <div class="seg" style="background:var(--health-amber)"><span>HOT</span></div>
+    <div class="seg" style="background:var(--health-red)"><span>OVER</span></div>
+  </div>
+  <div class="labels">
+    <div class="lab"><div class="t" style="color:var(--health-grey)">grey</div><div class="r">&lt; -24</div></div>
+    <div class="lab"><div class="t" style="color:var(--health-blue)">blue</div><div class="r">-24…-9</div></div>
+    <div class="lab"><div class="t" style="color:var(--health-green)">green</div><div class="r">-9…-3</div></div>
+    <div class="lab"><div class="t" style="color:var(--health-amber)">amber</div><div class="r">-3…0</div></div>
+    <div class="lab"><div class="t" style="color:var(--health-red)">red</div><div class="r">≥ 0 dBFS</div></div>
+  </div>
+</div>
+</body>
+</html>

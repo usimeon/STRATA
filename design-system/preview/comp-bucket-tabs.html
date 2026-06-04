@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:var(--bg);font-family:var(--font-sans);}
+  .wrap{padding:14px 18px;display:flex;flex-direction:column;gap:10px;}
+  .tabs{display:flex;gap:2px;}
+  .tab{
+    display:flex;align-items:center;gap:6px;padding:6px 11px 5px;
+    border-radius:3px 3px 0 0;border:var(--hairline);border-bottom:none;
+    cursor:default;font:700 13px/1 var(--font-sans);color:var(--fg-dim);
+    background:var(--bg);position:relative;
+  }
+  .tab.active{background:var(--panel);color:var(--fg);}
+  .tab.active::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:3px 3px 0 0;
+    background:var(--bucket-color,var(--accent));
+  }
+  .tab.active{background:color-mix(in srgb, var(--bucket-color,var(--accent)) 22%, var(--panel));}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--bucket-color,var(--bucket-0));flex-shrink:0;}
+  .body{background:var(--panel);border-radius:0 5px 5px 5px;border:var(--hairline);padding:10px 14px;min-height:40px;}
+  .note{font:var(--t-readout);color:var(--fg-dim);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tabs">
+    <div class="tab" style="--bucket-color:var(--bucket-0)"><div class="dot"></div>All</div>
+    <div class="tab active" style="--bucket-color:var(--bucket-1)"><div class="dot"></div>Drums</div>
+    <div class="tab" style="--bucket-color:var(--bucket-2)"><div class="dot"></div>Keys</div>
+    <div class="tab" style="--bucket-color:var(--bucket-4)"><div class="dot"></div>FX</div>
+    <div class="tab" style="--bucket-color:var(--bucket-5)"><div class="dot"></div>Vox</div>
+  </div>
+  <div class="body">
+    <div class="note">Active tab: panel + bucket-color 22% tint + 3px accent strip · Inactive: bg + hairline</div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:var(--bg);font-family:var(--font-sans);}
+  .wrap{padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
+  .grp{display:flex;flex-wrap:wrap;gap:7px;align-items:center;}
+  .glab{font:var(--t-readout);color:var(--fg-dim);width:62px;flex-shrink:0;}
+  .tok{font:600 11px/1 var(--font-num);letter-spacing:.04em;color:var(--fg);background:var(--panel);border:var(--hairline);border-radius:var(--r-sm);padding:5px 9px;font-variant-numeric:tabular-nums;}
+  .tok.sym{font-size:14px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="grp"><div class="glab">controls</div>
+    <span class="tok">BYPASS</span><span class="tok">MUTE</span><span class="tok">MONO</span><span class="tok sym">Ø</span><span class="tok">IN</span><span class="tok">OUT</span><span class="tok">LINK</span><span class="tok">ASSIGN</span>
+  </div>
+  <div class="grp"><div class="glab">meter</div>
+    <span class="tok">VU</span><span class="tok">RMS</span><span class="tok">RMS+3</span><span class="tok">K-12</span><span class="tok">K-14</span><span class="tok">K-20</span>
+  </div>
+  <div class="grp"><div class="glab">monitor</div>
+    <span class="tok">Stereo</span><span class="tok">Left</span><span class="tok">Right</span><span class="tok">Mono</span><span class="tok">Side</span>
+  </div>
+  <div class="grp"><div class="glab">units</div>
+    <span class="tok">-12.4 dB</span><span class="tok">0VU=-24</span><span class="tok">+3</span><span class="tok">-inf</span><span class="tok">dBFS</span>
+  </div>
+</div>
+</body>
+</html>

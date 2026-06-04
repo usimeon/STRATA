@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:var(--bg);font-family:var(--font-sans);}
+  .wrap{padding:18px 20px;}
+  .row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+  .sw{border-radius:var(--r-cap);overflow:hidden;border:var(--hairline);}
+  .chip{height:64px;}
+  .meta{padding:7px 9px;background:var(--panel);}
+  .name{font:var(--t-label);color:var(--fg);letter-spacing:.03em;text-transform:none;}
+  .hex{font:var(--t-readout);color:var(--fg-dim);margin-top:3px;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="row">
+    <div class="sw"><div class="chip" style="background:var(--bg)"></div><div class="meta"><div class="name">bg</div><div class="hex">#14171C</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--panel)"></div><div class="meta"><div class="name">panel</div><div class="hex">#1D222A</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--stroke)"></div><div class="meta"><div class="name">stroke</div><div class="hex">#2C333D</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--fg)"></div><div class="meta"><div class="name">fg</div><div class="hex">#E7ECF2</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--fg-dim)"></div><div class="meta"><div class="name">fg-dim</div><div class="hex">#8A94A3</div></div></div>
+  </div>
+</div>
+</body>
+</html>

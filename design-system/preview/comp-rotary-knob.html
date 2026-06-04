@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:var(--bg);font-family:var(--font-sans);}
+  .wrap{padding:18px 24px;display:flex;gap:32px;align-items:center;}
+  canvas{display:block;}
+  .spec{display:flex;flex-direction:column;gap:8px;}
+  .row{display:flex;align-items:center;gap:10px;}
+  .swatch{width:16px;height:16px;border-radius:2px;border:1px solid rgba(255,255,255,.08);}
+  .st{font:var(--t-readout);color:var(--fg-dim);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="knobs" width="260" height="100"></canvas>
+  <div class="spec">
+    <div class="row"><div class="swatch" style="background:#1d222a"></div><div class="st">body — panel #1D222A</div></div>
+    <div class="row"><div class="swatch" style="background:#2c333d"></div><div class="st">track — stroke #2C333D</div></div>
+    <div class="row"><div class="swatch" style="background:#36c1a6"></div><div class="st">value arc — accent #36C1A6</div></div>
+    <div class="row"><div class="swatch" style="background:#e7ecf2"></div><div class="st">pointer — fg #E7ECF2</div></div>
+    <div class="row"><div class="swatch" style="background:transparent;border-color:var(--accent)"></div><div class="st">self outline — teal 1.5px</div></div>
+  </div>
+</div>
+<script>
+const c=document.getElementById('knobs'),x=c.getContext('2d');
+// draw three knobs: min, mid, max (left to right)
+const configs=[
+  {cx:40, label:'MIN', v:-40, dbText:'-40 dB'},
+  {cx:130, label:'SELF', v:0,   dbText:'0 dB', self:true},
+  {cx:220, label:'MAX', v:12,  dbText:'+12 dB'},
+];
+const R=32, cy=50;
+const START=-Math.PI*0.72, END=Math.PI*0.72;
+
+configs.forEach(({cx,v,dbText,self})=>{
+  const t=(v+40)/52; // -40..+12 dB range
+  const valAngle=START+t*(END-START);
+
+  // body circle
+  x.fillStyle='#1d222a';
+  x.beginPath();x.arc(cx,cy,R,0,Math.PI*2);x.fill();
+
+  // self outline
+  if(self){x.strokeStyle='#36c1a6';x.lineWidth=2;x.beginPath();x.arc(cx,cy,R+3,0,Math.PI*2);x.stroke();}
+
+  // track arc
+  x.strokeStyle='#2c333d';x.lineWidth=3.5;
+  x.beginPath();x.arc(cx,cy,R-6,START,END);x.stroke();
+
+  // value arc (teal)
+  x.strokeStyle='#36c1a6';x.lineWidth=3.5;
+  x.beginPath();x.arc(cx,cy,R-6,START,valAngle);x.stroke();
+
+  // pointer
+  const px=cx+Math.cos(valAngle)*(R-10);
+  const py=cy+Math.sin(valAngle)*(R-10);
+  x.strokeStyle='#e7ecf2';x.lineWidth=2;
+  x.beginPath();x.moveTo(cx,cy);x.lineTo(px,py);x.stroke();
+
+  // center dot
+  x.fillStyle='#2c333d';x.beginPath();x.arc(cx,cy,5,0,Math.PI*2);x.fill();
+
+  // dB label below
+  x.fillStyle='#8a94a3';x.font='700 11px Inter, sans-serif';
+  x.textAlign='center';x.textBaseline='top';
+  x.fillText(dbText,cx,cy+R+5);
+});
+</script>
+</body>
+</html>

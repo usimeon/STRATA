@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:var(--bg);font-family:var(--font-sans);}
+  .wrap{padding:14px 20px;display:flex;gap:14px;align-items:stretch;}
+  /* channel column */
+  .col{
+    width:72px;background:var(--panel);border-radius:var(--r-column);
+    border:var(--hairline);padding:8px 6px;display:flex;flex-direction:column;
+    align-items:center;gap:6px;position:relative;
+  }
+  .col.self{outline:1.5px solid var(--accent);}
+  .drag-handle{display:grid;grid-template-columns:repeat(2,4px);gap:3px;padding:2px;cursor:grab;align-self:flex-start;}
+  .drag-handle span{width:3px;height:3px;border-radius:50%;background:var(--fg-dim);}
+  .name{font:400 12px/1.2 var(--font-sans);color:var(--fg);text-align:center;max-width:100%;
+    background:var(--bg);border-radius:3px;padding:3px 5px;width:100%;box-sizing:border-box;text-align:center;}
+  /* mini VU */
+  .vu-mini{width:54px;height:54px;border-radius:4px;background:var(--vu-bezel);padding:3px;box-sizing:border-box;}
+  .vu-face{width:100%;height:100%;border-radius:3px;background:linear-gradient(var(--vu-cream-hi),var(--vu-cream-lo));position:relative;}
+  /* fader */
+  .fader-wrap{position:relative;width:44px;height:68px;}
+  .health{position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:8px;border-radius:2px;opacity:.35;}
+  .groove{position:absolute;left:50%;transform:translateX(-50%);top:0;bottom:0;width:7px;background:#0d0d0f;border-radius:3px;}
+  .fcap{position:absolute;left:0;right:0;height:13px;border-radius:3px;box-shadow:var(--cap-shadow);
+    background:linear-gradient(to bottom,var(--metal-0),var(--metal-2) 48%,var(--metal-3) 52%,var(--metal-5));}
+  .fcap::after{content:'';position:absolute;left:50%;top:3px;bottom:3px;width:2px;transform:translateX(-50%);background:var(--metal-groove);}
+  .btnrow{display:flex;gap:4px;}
+  .btn{font:700 9px/1 var(--font-sans);letter-spacing:.04em;text-transform:uppercase;
+    padding:4px 5px;border-radius:2px;border:1px solid var(--stroke);
+    color:var(--fg);background:var(--bg);}
+  .btn.on-in{color:#11140f;background:var(--warn);border-color:transparent;}
+  .btn.on-link{color:#fff;background:var(--link);border-color:transparent;}
+  /* specs column */
+  .spec{flex:1;display:flex;flex-direction:column;gap:6px;justify-content:center;}
+  .si{font:var(--t-readout);color:var(--fg-dim);line-height:1.5;}
+  .si b{color:var(--fg);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- self-instance column -->
+  <div class="col self">
+    <div class="drag-handle"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    <div class="name">Kick In</div>
+    <div class="vu-mini"><div class="vu-face"><canvas id="vu1" width="96" height="96" style="width:100%;height:100%"></canvas></div></div>
+    <div class="fader-wrap">
+      <div class="health" style="background:var(--health-green);height:65%"></div>
+      <div class="groove"></div>
+      <div class="fcap" style="top:20px"></div>
+    </div>
+    <div class="btnrow"><div class="btn on-in">IN</div><div class="btn on-link">LK1</div></div>
+  </div>
+
+  <!-- peer column -->
+  <div class="col">
+    <div class="drag-handle"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    <div class="name">Snare</div>
+    <div class="vu-mini"><div class="vu-face"><canvas id="vu2" width="96" height="96" style="width:100%;height:100%"></canvas></div></div>
+    <div class="fader-wrap">
+      <div class="health" style="background:var(--health-amber);height:78%"></div>
+      <div class="groove"></div>
+      <div class="fcap" style="top:10px"></div>
+    </div>
+    <div class="btnrow"><div class="btn on-in">IN</div><div class="btn">LK1</div></div>
+  </div>
+
+  <!-- bypassed column -->
+  <div class="col" style="opacity:.6">
+    <div class="drag-handle"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    <div class="name">OH L</div>
+    <div class="vu-mini"><div class="vu-face"><canvas id="vu3" width="96" height="96" style="width:100%;height:100%"></canvas></div></div>
+    <div class="fader-wrap">
+      <div class="health" style="background:var(--health-grey);height:20%"></div>
+      <div class="groove"></div>
+      <div class="fcap" style="top:44px"></div>
+    </div>
+    <div class="btnrow"><div class="btn" style="color:#1a160a;background:var(--warn);border-color:transparent">BYP</div><div class="btn">LK2</div></div>
+  </div>
+
+  <div class="spec">
+    <div class="si"><b>Self-instance:</b> 1.5px teal outline</div>
+    <div class="si"><b>Drag handle:</b> 2×3 dot grid (fg-dim)</div>
+    <div class="si"><b>Name field:</b> bg fill, 12px/400</div>
+    <div class="si"><b>Fader cap:</b> brushed-aluminium · cap-shadow</div>
+    <div class="si"><b>Health wash:</b> behind fader, 35% alpha, level-driven color</div>
+    <div class="si"><b>IN on:</b> warn amber · <b>LINK on:</b> link blue</div>
+    <div class="si"><b>BYPASS on:</b> warn amber + col dims to 60% opacity</div>
+  </div>
+</div>
+<script>
+// tiny arc for mini VU meters
+function drawMiniVU(id, vuVal){
+  const c=document.getElementById(id); if(!c)return;
+  const x=c.getContext('2d'),W=c.width,H=c.height;
+  const cx=W/2,cy=H*0.93,R=W*0.38;
+  const A0=-0.80,A1=0.80;
+  // VU scale t
+  const T=v=>(v+20)/23;
+  const t0=T(0);
+  // arcs
+  x.lineWidth=2;x.strokeStyle='#3a3028';
+  x.beginPath();x.arc(cx,cy,R,-Math.PI/2+A0,-Math.PI/2+(A0+(A1-A0)*t0));x.stroke();
+  x.lineWidth=2.5;x.strokeStyle='#b23a2c';
+  x.beginPath();x.arc(cx,cy,R,-Math.PI/2+(A0+(A1-A0)*t0),-Math.PI/2+A1);x.stroke();
+  // ticks
+  [-20,-10,-5,0,3].forEach(v=>{
+    const t=T(v),a=-Math.PI/2+A0+t*(A1-A0);
+    const len=5;x.strokeStyle=v>=0?'#b23a2c':'#3a3028';x.lineWidth=1;
+    x.beginPath();x.moveTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R);
+    x.lineTo(cx+Math.cos(a)*(R-len),cy+Math.sin(a)*(R-len));x.stroke();
+  });
+  // needle
+  const tv=T(vuVal),na=-Math.PI/2+A0+tv*(A1-A0);
+  x.strokeStyle='#1b1814';x.lineWidth=1.5;
+  x.beginPath();x.moveTo(cx,cy);x.lineTo(cx+Math.cos(na)*R*0.95,cy+Math.sin(na)*R*0.95);x.stroke();
+  x.fillStyle='#2c2822';x.beginPath();x.arc(cx,cy,5,0,Math.PI*2);x.fill();
+}
+drawMiniVU('vu1',-5);
+drawMiniVU('vu2',-1);
+drawMiniVU('vu3',-22);
+</script>
+</body>
+</html>

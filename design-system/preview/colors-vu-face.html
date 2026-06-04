@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:var(--bg);font-family:var(--font-sans);}
+  .wrap{padding:14px 18px;display:flex;align-items:center;gap:16px;}
+  .dial{width:246px;height:152px;border-radius:var(--r-vu);background:var(--vu-bezel);padding:5px;box-sizing:border-box;flex-shrink:0;}
+  .face{width:100%;height:100%;border-radius:5px;background:linear-gradient(var(--vu-cream-hi),var(--vu-cream-lo));}
+  .row{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;flex:1;}
+  .sw{border-radius:var(--r-cap);overflow:hidden;border:1px solid rgba(255,255,255,.08);}
+  .chip{height:34px;}
+  .meta{padding:5px 7px;background:var(--panel);}
+  .name{font:var(--t-readout);color:var(--fg);}
+  .hex{font:var(--t-readout);color:var(--fg-dim);margin-top:2px;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="dial"><div class="face">
+    <!-- canvas is 2× the face display size for crisp rendering -->
+    <canvas id="c" width="472" height="284" style="width:100%;height:100%"></canvas>
+  </div></div>
+  <div class="row">
+    <div class="sw"><div class="chip" style="background:var(--vu-cream-hi)"></div><div class="meta"><div class="name">cream-hi</div><div class="hex">#F3ECD9</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--vu-cream-lo)"></div><div class="meta"><div class="name">cream-lo</div><div class="hex">#D8CDB0</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--vu-ink)"></div><div class="meta"><div class="name">ink</div><div class="hex">#2C2822</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--vu-red)"></div><div class="meta"><div class="name">red zone</div><div class="hex">#B23A2C</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--vu-needle-k)"></div><div class="meta"><div class="name">needle</div><div class="hex">#1B1814</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--vu-hold)"></div><div class="meta"><div class="name">hold</div><div class="hex">#E08A1E</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--vu-led-on)"></div><div class="meta"><div class="name">led on</div><div class="hex">#E5483D</div></div></div>
+    <div class="sw"><div class="chip" style="background:var(--vu-bezel)"></div><div class="meta"><div class="name">bezel</div><div class="hex">#0D0D0F</div></div></div>
+  </div>
+</div>
+<script>
+const c = document.getElementById('c');
+const x = c.getContext('2d');
+const W = c.width, H = c.height;
+const cx = W / 2;
+const cy = Math.round(H * 0.945);   // pivot near bottom
+const R  = 138;                      // arc radius
+
+// Sweep: A0 = left end, A1 = right end (offset from 12-o'clock / -π/2)
+const A0 = -0.88, A1 = 0.88;
+const ang = t => A0 + t * (A1 - A0);
+
+// ── VU scale ── non-linear arc positions (t: 0→1, matching real IEC VU scale)
+const vuScale = [
+  { v:-20, t:0.000 }, { v:-10, t:0.218 }, { v: -7, t:0.324 },
+  { v: -5, t:0.410 }, { v: -3, t:0.508 }, { v: -2, t:0.570 },
+  { v: -1, t:0.636 }, { v:  0, t:0.710 },
+  { v: +1, t:0.793 }, { v: +2, t:0.870 }, { v: +3, t:1.000 },
+];
+// ── % scale ── amplitude-linear (100 % = 0 VU)
+// positions: 20 %→-14 VU, 40 %→-8 VU, 60 %→-4.4 VU, 80 %→-1.9 VU, 100 %→0 VU
+const pctScale = [
+  { p:  20, t:0.130 }, { p:  40, t:0.286 },
+  { p:  60, t:0.435 }, { p:  80, t:0.575 }, { p: 100, t:0.710 },
+];
+const T0 = 0.710; // t at 0 VU — start of red zone
+
+// ── Arcs ──────────────────────────────────────────────────────────────────
+x.lineWidth = 2.5; x.strokeStyle = '#3a3028';
+x.beginPath(); x.arc(cx,cy,R, -Math.PI/2+A0, -Math.PI/2+ang(T0)); x.stroke();
+x.lineWidth = 3;  x.strokeStyle = '#b23a2c';
+x.beginPath(); x.arc(cx,cy,R, -Math.PI/2+ang(T0), -Math.PI/2+A1); x.stroke();
+
+// ── Major ticks ───────────────────────────────────────────────────────────
+const majorSet = new Set([-20, -10, -5, 0, 3]);
+vuScale.forEach(m => {
+  const a   = -Math.PI/2 + ang(m.t);
+  const red = m.v >= 0;
+  const len = majorSet.has(m.v) ? 15 : 9;
+  x.strokeStyle = red ? '#b23a2c' : '#3a3028';
+  x.lineWidth   = red ? 2.2 : 1.6;
+  x.beginPath();
+  x.moveTo(cx + Math.cos(a)*R,       cy + Math.sin(a)*R);
+  x.lineTo(cx + Math.cos(a)*(R-len), cy + Math.sin(a)*(R-len));
+  x.stroke();
+});
+
+// ── Minor ticks (3 subdivisions between each major mark) ─────────────────
+for (let i = 0; i < vuScale.length - 1; i++) {
+  const t1 = vuScale[i].t, t2 = vuScale[i+1].t;
+  const n  = 3;
+  for (let j = 1; j < n; j++) {
+    const t   = t1 + j*(t2-t1)/n;
+    const a   = -Math.PI/2 + ang(t);
+    const red = t >= T0;
+    x.strokeStyle = red ? 'rgba(178,58,44,0.6)' : 'rgba(58,48,40,0.6)';
+    x.lineWidth   = 1;
+    x.beginPath();
+    x.moveTo(cx + Math.cos(a)*R,     cy + Math.sin(a)*R);
+    x.lineTo(cx + Math.cos(a)*(R-5), cy + Math.sin(a)*(R-5));
+    x.stroke();
+  }
+}
+
+// ── VU numbers — OUTSIDE arc, no minus sign (classic analog convention) ──
+// Skip -20: it's at the extreme left where "VU" label lives; a tick alone is standard.
+x.textAlign    = 'center';
+x.textBaseline = 'middle';
+x.font = '700 16px Inter, sans-serif';
+vuScale.forEach(m => {
+  if (m.v === -20) return;      // tick only at far-left end
+  const a   = -Math.PI/2 + ang(m.t);
+  const rr  = R + 22;
+  const red = m.v >= 0;
+  x.fillStyle = red ? '#b23a2c' : '#2c2822';
+  x.fillText(String(Math.abs(m.v)), cx + Math.cos(a)*rr, cy + Math.sin(a)*rr);
+});
+
+// ── % numbers — INSIDE arc, between arc and pivot ─────────────────────────
+x.font      = '400 13px Inter, sans-serif';
+x.fillStyle = '#7a7060';
+pctScale.forEach(m => {
+  const a  = -Math.PI/2 + ang(m.t);
+  const rr = R - 23;
+  x.fillText(String(m.p), cx + Math.cos(a)*rr, cy + Math.sin(a)*rr);
+});
+
+// ── "VU" label — sits just above the -20 tick at the far-left end ────────
+// Positioned above the arc so it doesn't collide with any number.
+const vuEndA = -Math.PI/2 + ang(0); // angle of the -20 end
+x.textAlign    = 'center';
+x.textBaseline = 'bottom';
+x.font      = '700 18px Inter, sans-serif';
+x.fillStyle = '#7a7060';
+x.fillText('VU',
+  cx + Math.cos(vuEndA) * (R + 22),
+  cy + Math.sin(vuEndA) * (R + 22) - 14
+);
+
+// ── Needle (showing −3 VU) ────────────────────────────────────────────────
+const needleIdx = vuScale.findIndex(m => m.v === -3);
+const na = -Math.PI/2 + ang(vuScale[needleIdx].t);
+x.strokeStyle = '#1b1814'; x.lineWidth = 2.5;
+x.beginPath();
+x.moveTo(cx, cy);
+x.lineTo(cx + Math.cos(na)*R*0.97, cy + Math.sin(na)*R*0.97);
+x.stroke();
+
+// ── Peak-hold needle (orange, +1 VU) ─────────────────────────────────────
+const holdIdx = vuScale.findIndex(m => m.v === 1);
+const ha = -Math.PI/2 + ang(vuScale[holdIdx].t);
+x.strokeStyle = '#e08a1e'; x.lineWidth = 2;
+x.beginPath();
+x.moveTo(cx + Math.cos(ha)*R*0.52, cy + Math.sin(ha)*R*0.52);
+x.lineTo(cx + Math.cos(ha)*(R-3),  cy + Math.sin(ha)*(R-3));
+x.stroke();
+
+// ── Pivot hub ─────────────────────────────────────────────────────────────
+x.fillStyle = '#2c2822'; x.beginPath(); x.arc(cx,cy,9,0,Math.PI*2); x.fill();
+x.fillStyle = '#d4c8aa'; x.beginPath(); x.arc(cx,cy,4,0,Math.PI*2); x.fill();
+</script>
+</body>
+</html>

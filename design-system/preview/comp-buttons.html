@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:var(--bg);font-family:var(--font-sans);}
+  .wrap{padding:18px 22px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;}
+  button{font:var(--t-label);letter-spacing:.04em;text-transform:uppercase;
+    border-radius:var(--r-cap);padding:7px 12px;cursor:default;border:var(--hairline);}
+  /* states */
+  .off{color:var(--fg);background:var(--panel);}
+  .off:hover{background:#232a33;}
+  .on {color:#11140f;background:var(--accent);border-color:transparent;}
+  .bypass{color:#1a160a;background:var(--warn);border-color:transparent;}
+  .mute{color:#fff;background:var(--clip);border-color:transparent;}
+  .link{color:#fff;background:var(--link);border-color:transparent;}
+  .sep{width:1px;height:32px;background:var(--stroke);margin:0 4px;align-self:center;}
+  .grp{display:flex;flex-direction:column;gap:4px;align-items:flex-start;}
+  .glabel{font:var(--t-readout);color:var(--fg-dim);margin-bottom:2px;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="grp">
+    <div class="glabel">off / idle</div>
+    <div class="row">
+      <button class="off">BYPASS</button>
+      <button class="off">MUTE</button>
+      <button class="off">MONO</button>
+      <button class="off">Ø</button>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <div class="grp">
+    <div class="glabel">on states</div>
+    <div class="row">
+      <button class="bypass">BYPASS</button>
+      <button class="mute">MUTE</button>
+      <button class="on">MONO</button>
+      <button class="on">Ø</button>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <div class="grp">
+    <div class="glabel">link / assign</div>
+    <div class="row">
+      <button class="link">LINK 1</button>
+      <button class="link">LINK 2</button>
+      <button class="off">ASSIGN</button>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <div class="grp">
+    <div class="glabel">in / out</div>
+    <div class="row">
+      <button class="on">IN</button>
+      <button class="bypass">OUT</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

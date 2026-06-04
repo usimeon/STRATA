@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:var(--bg);font-family:var(--font-sans);}
+  .wrap{padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
+  /* radii row */
+  .row{display:flex;gap:14px;align-items:flex-end;}
+  .rb{display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .box{background:var(--panel);border:var(--hairline);width:52px;height:36px;}
+  .lbl{font:var(--t-readout);color:var(--fg-dim);font-variant-numeric:tabular-nums;}
+  .name{font:var(--t-label);color:var(--fg);letter-spacing:.02em;text-transform:none;}
+  /* elevation / shadow row */
+  .erow{display:flex;gap:16px;align-items:center;}
+  .ec{display:flex;flex-direction:column;gap:5px;}
+  .esamp{width:80px;height:28px;background:var(--panel);border-radius:3px;}
+  .edesc{font:var(--t-readout);color:var(--fg-dim);max-width:80px;line-height:1.4;}
+  /* hairline demo */
+  .hl{height:1px;width:100%;background:var(--stroke);margin:2px 0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- Radii -->
+  <div class="row">
+    <div class="rb"><div class="box" style="border-radius:var(--r-sm)"></div><div class="name">r-sm</div><div class="lbl">2px</div></div>
+    <div class="rb"><div class="box" style="border-radius:var(--r-wash)"></div><div class="name">r-wash</div><div class="lbl">4px</div></div>
+    <div class="rb"><div class="box" style="border-radius:var(--r-cap)"></div><div class="name">r-cap</div><div class="lbl">3px</div></div>
+    <div class="rb"><div class="box" style="border-radius:var(--r-column)"></div><div class="name">r-column</div><div class="lbl">5px</div></div>
+    <div class="rb"><div class="box" style="border-radius:var(--r-vu)"></div><div class="name">r-vu</div><div class="lbl">7px</div></div>
+    <div style="flex:1"></div>
+    <!-- hairline demo -->
+    <div style="flex:1;display:flex;flex-direction:column;gap:4px;justify-content:flex-end;padding-bottom:22px;">
+      <div class="lbl" style="color:var(--fg);margin-bottom:4px">Hairline / dividers</div>
+      <div class="hl"></div>
+      <div style="height:1px;width:100%;background:var(--divider)"></div>
+      <div class="lbl">stroke #2C333D · divider rgba(0,0,0,.4)</div>
+    </div>
+  </div>
+  <!-- Elevation / shadows -->
+  <div class="erow">
+    <div class="ec">
+      <div class="esamp" style="box-shadow:var(--cap-shadow)"></div>
+      <div class="edesc">cap-shadow<br>0 2px 3px<br>rgba(0,0,0,.45)</div>
+    </div>
+    <div class="ec">
+      <div class="esamp" style="box-shadow:var(--led-glow);background:var(--vu-led-on)"></div>
+      <div class="edesc">led-glow<br>0 0 6px<br>rgba(229,72,61,.5)</div>
+    </div>
+    <div class="ec">
+      <div class="esamp" style="outline:1.5px solid var(--accent)"></div>
+      <div class="edesc">self-outline<br>1.5px solid<br>teal accent</div>
+    </div>
+    <div class="ec" style="margin-left:8px;">
+      <div style="font:var(--t-readout);color:var(--fg-dim);line-height:1.6;max-width:200px">
+        No drop-shadows on panels. Depth comes from<br>
+        value steps: <span style="color:var(--bg)">bg</span> → <span style="color:var(--panel)">panel</span> → <span style="color:var(--stroke)">stroke</span>.<br>
+        Shadows are physical-only (fader cap, LED bloom).
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

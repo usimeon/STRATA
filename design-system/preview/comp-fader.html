@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:var(--bg);font-family:var(--font-sans);}
+  .wrap{padding:16px 22px;display:flex;gap:28px;align-items:flex-start;}
+  .faders{display:flex;gap:18px;align-items:flex-end;}
+  .fcol{display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .flabel{font:var(--t-readout);color:var(--fg-dim);}
+
+  /* ── Fader unit ── */
+  .fu{display:flex;gap:5px;align-items:flex-start;}
+  .track-wrap{position:relative;width:46px;}
+  .health{position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:9px;border-radius:2px;opacity:.38;}
+  .slot{
+    position:absolute;left:50%;transform:translateX(-50%);
+    width:5px;border-radius:2px;
+    background:#080a0c;
+    box-shadow:inset 0 0 4px rgba(0,0,0,.8),inset 1px 0 0 rgba(255,255,255,.04);
+  }
+  .cap{
+    position:absolute;left:0;right:0;border-radius:3px;overflow:hidden;
+    box-shadow:0 4px 8px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.3) inset;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,.38) 0px, rgba(0,0,0,.38) 2px,
+        transparent 2px, transparent 8px,
+        rgba(255,255,255,.28) 8px, rgba(255,255,255,.28) 10px
+      ),
+      linear-gradient(to bottom, #c8c8cc, #a8a8ac 48%, #989899 52%, #b0b0b4);
+  }
+  .cap::after{
+    content:'';position:absolute;left:50%;top:50%;
+    width:30px;height:2px;transform:translate(-50%,-50%);
+    background:rgba(0,0,0,.45);border-radius:1px;
+  }
+  .scale{position:relative;width:18px;}
+  .sm{position:absolute;transform:translateY(-50%);
+    font:400 8px/1 var(--font-num);color:var(--stroke);
+    font-variant-numeric:tabular-nums;}
+  .sm.zero{font-weight:700;color:var(--fg-dim);}
+
+  /* spec panel */
+  .spec{flex:1;display:flex;flex-direction:column;gap:7px;}
+  .si{font:var(--t-readout);color:var(--fg-dim);display:flex;gap:6px;align-items:center;}
+  .sw{width:14px;height:14px;border-radius:2px;border:1px solid rgba(255,255,255,.1);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="faders" id="faders"></div>
+  <div class="spec">
+    <div class="si"><div class="sw" style="background:repeating-linear-gradient(to bottom,rgba(0,0,0,.15) 0,rgba(0,0,0,.15) 1px,rgba(255,255,255,.18) 1px,rgba(255,255,255,.18) 2px,transparent 2px,transparent 5px),linear-gradient(#e2e2e6,#808084)"></div>Ribbed cap · repeating ridge gradient</div>
+    <div class="si"><div class="sw" style="background:#080a0c;box-shadow:inset 0 0 4px rgba(0,0,0,.8)"></div>Recessed slot · 5px, near-black + inset shadow</div>
+    <div class="si"><div class="sw" style="background:rgba(0,0,0,.55)"></div>Index slot · vertical dark line, centered</div>
+    <div class="si" style="margin-top:4px;font:var(--t-label);color:var(--fg-dim);text-transform:uppercase;letter-spacing:.03em">Health wash behind track</div>
+    <div class="si"><div class="sw" style="background:var(--health-green)"></div>green · –9…–3 dBFS</div>
+    <div class="si"><div class="sw" style="background:var(--health-amber)"></div>amber · –3…0 dBFS</div>
+    <div class="si"><div class="sw" style="background:var(--health-red)"></div>red · ≥ 0 dBFS</div>
+    <div class="si"><div class="sw" style="background:var(--health-blue)"></div>blue · –24…–9 dBFS</div>
+  </div>
+</div>
+<script>
+// Render fader instances via JS
+const configs=[
+  {label:'–3 dB', t:(57/72), health:'green'},
+  {label:'–1 dB', t:(59/72), health:'amber'},
+  {label:'0 dBFS',t:(60/72), health:'red'},
+  {label:'–18 dB',t:(42/72), health:'blue'},
+];
+const TH=130, CAP_H=52;
+const MIN=-60, MAX=12, RANGE=72;
+const scaleVals=[12,6,0,-6,-12,-18,-24,-30,-36,-42,-48];
+
+configs.forEach(({label,t,health})=>{
+  const healthColors={red:'#e5484d',amber:'#e2b341',green:'#3fb86b',blue:'#4178d6',grey:'#5b5f6b'};
+  const capTop=Math.round((1-t)*(TH-CAP_H));
+  const washH=Math.round(t*100);
+
+  const col=document.createElement('div');
+  col.className='fcol';
+  col.innerHTML=`
+    <div class="flabel">${label}</div>
+    <div class="fu">
+      <div class="track-wrap" style="height:${TH}px">
+        <div class="health" style="background:${healthColors[health]};height:${washH}%"></div>
+        <div class="slot" style="top:${CAP_H/2}px;bottom:${CAP_H/2}px"></div>
+        <div class="cap" style="height:${CAP_H}px;top:${capTop}px"></div>
+      </div>
+      <div class="scale" style="height:${TH}px">
+        ${scaleVals.map(v=>{
+          const vt=(v-MIN)/RANGE;
+          const y=Math.round((1-vt)*TH);
+          return `<div class="sm${v===0?' zero':''}" style="top:${y}px">${Math.abs(v)===0?'0':Math.abs(v)}</div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="flabel" style="color:${healthColors[health]}">●</div>
+  `;
+  document.getElementById('faders').appendChild(col);
+});
+</script>
+</body>
+</html>
