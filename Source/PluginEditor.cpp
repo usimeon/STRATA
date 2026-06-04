@@ -32,6 +32,20 @@ StrataEditor::StrataEditor (StrataProcessor& p)
     : AudioProcessorEditor (p), proc (p)
 {
     setLookAndFeel (&lnf);
+    addAndMakeVisible (content);
+
+    guiScaleBox.addItem ("75%", 1);
+    guiScaleBox.addItem ("100%", 2);
+    guiScaleBox.addItem ("125%", 3);
+    guiScaleBox.addItem ("150%", 4);
+    guiScaleBox.addItem ("200%", 5);
+    guiScaleBox.setSelectedId (2, juce::dontSendNotification);
+    guiScaleBox.onChange = [this]
+    {
+        static constexpr float scales[] = { 0.75f, 1.0f, 1.25f, 1.5f, 2.0f };
+        setUiScale (scales[(size_t) juce::jlimit (0, 4, guiScaleBox.getSelectedItemIndex())]);
+    };
+    content.addAndMakeVisible (guiScaleBox);
 
     auto setupKnob = [this] (juce::Slider& s)
     {
@@ -39,7 +53,7 @@ StrataEditor::StrataEditor (StrataProcessor& p)
         s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 64, 18);
         s.setTextValueSuffix (" dB");
         s.setDoubleClickReturnValue (true, 0.0);
-        addAndMakeVisible (s);
+        content.addAndMakeVisible (s);
     };
     setupKnob (inGain);
     inGainAtt = std::make_unique<SliderAttach> (proc.apvts, params::inputGain, inGain);
@@ -48,7 +62,7 @@ StrataEditor::StrataEditor (StrataProcessor& p)
     {
         b->setClickingTogglesState (true);
         b->setColour (juce::TextButton::buttonOnColourId, juce::Colour (ui::Theme::accent));
-        addAndMakeVisible (*b);
+        content.addAndMakeVisible (*b);
     }
     bypassBtn.setColour (juce::TextButton::buttonOnColourId, juce::Colour (ui::Theme::warn));
     muteBtn  .setColour (juce::TextButton::buttonOnColourId, juce::Colour (ui::Theme::clip));
@@ -59,24 +73,24 @@ StrataEditor::StrataEditor (StrataProcessor& p)
 
     meterTypePills.onChange = [this] (int index) { setChoiceParam (proc.apvts, params::meterType, index); };
     monitorPills.onChange   = [this] (int index) { setChoiceParam (proc.apvts, params::monitorMode, index); };
-    addAndMakeVisible (meterTypePills);
-    addAndMakeVisible (monitorPills);
+    content.addAndMakeVisible (meterTypePills);
+    content.addAndMakeVisible (monitorPills);
 
     groupLabel.setText ("GROUP", juce::dontSendNotification);
     groupLabel.setJustificationType (juce::Justification::centredLeft);
     groupLabel.setColour (juce::Label::textColourId, juce::Colour (ui::Theme::textDim));
     groupLabel.setInterceptsMouseClicks (false, false);
     groupLabel.setFont (juce::Font (juce::FontOptions (9.0f).withStyle ("Bold")));
-    addAndMakeVisible (groupLabel);
+    content.addAndMakeVisible (groupLabel);
 
     groupDots.onChange = [this] (int group) { proc.setGroup (group); };
-    addAndMakeVisible (groupDots);
+    content.addAndMakeVisible (groupDots);
 
     meterTypePills.setSelectedIndex (getChoiceIndex (proc.apvts, params::meterType));
     monitorPills.setSelectedIndex (getChoiceIndex (proc.apvts, params::monitorMode));
     groupDots.setSelectedGroup (proc.getGroup());
 
-    addAndMakeVisible (meter);
+    content.addAndMakeVisible (meter);
     meter.onClear = [this] { proc.clearMeterClip(); };
     meter.onCalibrate = [this] (float refDb)
     {
@@ -93,23 +107,23 @@ StrataEditor::StrataEditor (StrataProcessor& p)
     nameLabel.setColour (juce::Label::backgroundColourId, juce::Colour (ui::Theme::panel));
     nameLabel.setFont (juce::Font (juce::FontOptions (13.0f)));
     nameLabel.onTextChange = [this] { proc.setInstanceName (nameLabel.getText()); };
-    addAndMakeVisible (nameLabel);
+    content.addAndMakeVisible (nameLabel);
 
     // ---- Channel View toggle (control-surface overview) ----
     chViewBtn.setClickingTogglesState (true);
-    chViewBtn.setColour (juce::TextButton::buttonOnColourId, juce::Colour (ui::Theme::link));
+    chViewBtn.setColour (juce::TextButton::buttonOnColourId, juce::Colour (ui::Theme::panel));
     chViewBtn.onClick = [this] { setChannelViewMode (chViewBtn.getToggleState()); };
-    addAndMakeVisible (chViewBtn);
+    content.addAndMakeVisible (chViewBtn);
 
-    addChildComponent (channelView); // hidden until channel-view mode
+    content.addChildComponent (channelView); // hidden until channel-view mode
 
     // ---- Live registry updates ----
     proc.onRegistryChangedCallback = [this] { refreshLinkPanel(); };
     refreshLinkPanel(); // reflect any existing bucket names right away
 
-    setResizable (true, true);
-    setResizeLimits (320, 420, 1100, 900);
+    setResizable (false, false);
     setSize (360, 520);
+    updateWindowSize();
 
     startTimerHz (30);
 }
@@ -143,16 +157,32 @@ void StrataEditor::paint (juce::Graphics& g)
 {
     g.fillAll (juce::Colour (ui::Theme::bg));
 
-    auto top = getLocalBounds().removeFromTop (30).toFloat();
+    const int baseW = channelViewMode ? 760 : 360;
+    juce::Graphics::ScopedSaveState ss (g);
+    g.addTransform (juce::AffineTransform::scale (uiScale));
+
+    auto top = juce::Rectangle<float> (0.0f, 0.0f, (float) baseW, 30.0f);
+    const juce::Font titleFont (juce::FontOptions (16.0f).withStyle ("Bold"));
+    g.setFont (titleFont);
     g.setColour (juce::Colour (ui::Theme::accent));
-    g.setFont (juce::Font (juce::FontOptions (16.0f).withStyle ("Bold")));
-    g.drawText ("STRATA", top.reduced (10, 0), juce::Justification::centredLeft);
+    const auto titleArea = top.withTrimmedLeft (10.0f).withWidth ((float) titleFont.getStringWidth ("STRATA") + 2.0f);
+    g.drawText ("STRATA", titleArea, juce::Justification::centredLeft);
+
+    if (channelViewMode)
+    {
+        const float badgeX = titleArea.getRight() + 8.0f;
+        const auto badge = juce::Rectangle<float> (badgeX, top.getCentreY() - 9.0f, 84.0f, 18.0f);
+        g.setColour (juce::Colour (ui::Theme::accent));
+        g.drawRoundedRectangle (badge, 3.0f, 1.5f);
+        g.setFont (juce::Font (juce::FontOptions (10.0f).withStyle ("Bold")));
+        g.drawText ("CH VIEW", badge.toNearestInt(), juce::Justification::centred, true);
+    }
 
     if (proc.getGroup() != 0)
     {
         const auto col = strata::link::InstanceRegistry::getInstance().getBucketColour (proc.getGroup());
         g.setColour (juce::Colour (col));
-        g.fillEllipse (top.removeFromRight (28).withSizeKeepingCentre (10, 10));
+        g.fillEllipse (top.removeFromRight (28.0f).withSizeKeepingCentre (10.0f, 10.0f));
     }
 }
 
@@ -160,6 +190,7 @@ void StrataEditor::setChannelViewMode (bool on)
 {
     channelViewMode = on;
     chViewBtn.setToggleState (on, juce::dontSendNotification);
+    chViewBtn.setButtonText (on ? "STRIP VIEW" : "CHANNEL VIEW");
 
     const bool strip = ! on;
     nameLabel.setVisible (strip); inGain.setVisible (strip);
@@ -170,16 +201,32 @@ void StrataEditor::setChannelViewMode (bool on)
     meter.setVisible (strip);
     channelView.setVisible (on);
 
-    if (on && getWidth() < 640)
-        setSize (760, juce::jmax (getHeight(), 420));
-
+    updateWindowSize();
     resized();
+}
+
+void StrataEditor::setUiScale (float scale)
+{
+    uiScale = juce::jlimit (0.75f, 2.0f, scale);
+    content.setTransform (juce::AffineTransform::scale (uiScale));
+    updateWindowSize();
+}
+
+void StrataEditor::updateWindowSize()
+{
+    const int baseW = channelViewMode ? 760 : 360;
+    const int baseH = channelViewMode ? 420 : 520;
+    setSize (juce::roundToInt ((float) baseW * uiScale),
+             juce::roundToInt ((float) baseH * uiScale));
 }
 
 void StrataEditor::resized()
 {
-    auto r = getLocalBounds();
+    content.setBounds (0, 0, channelViewMode ? 760 : 360, channelViewMode ? 420 : 520);
+    auto r = content.getLocalBounds();
     auto header = r.removeFromTop (30);
+    guiScaleBox.setBounds (header.removeFromRight (58).reduced (0, 4));
+    header.removeFromRight (6);
     header.removeFromRight (28);                 // reserved for the group-link dot
     chViewBtn.setBounds (header.removeFromRight (130).reduced (4));
 

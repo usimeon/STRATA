@@ -1,5 +1,7 @@
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <array>
+#include <vector>
 #include "../PluginProcessor.h"
 #include "../Parameters.h"
 #include "LookAndFeel.h"
@@ -19,34 +21,64 @@ namespace strata::ui
     class BucketTab : public juce::Component
     {
     public:
-        int          group  = 1;
+        int          group  = 0;
         bool         active = false;
         juce::uint32 colour = 0xff8a94a3;
-        juce::String name;                 // empty when the bucket has no custom name
+        juce::String label;
+        int          count = 0;
         std::function<void()> onSelect;
 
         void mouseUp (const juce::MouseEvent&) override { if (onSelect) onSelect(); }
 
+        int preferredWidth() const
+        {
+            juce::Font f (juce::FontOptions (13.0f).withStyle ("Bold"));
+            const float labelW = (float) f.getStringWidth (label);
+            const float countW = count > 0 ? (float) f.getStringWidth (juce::String (count)) : 0.0f;
+            return juce::roundToInt (juce::jmax (64.0f, labelW + countW + (count > 0 ? 8.0f : 0.0f) + 30.0f));
+        }
+
         void paint (juce::Graphics& g) override
         {
             auto b = getLocalBounds().toFloat();
+            if (b.isEmpty())
+                return;
+
             g.setColour (juce::Colour (active ? Theme::panel : Theme::bg));
             g.fillRect (b);
-            if (active) { g.setColour (juce::Colour (colour).withAlpha (0.22f)); g.fillRect (b); }
+            if (active)
+            {
+                g.setColour (juce::Colour (colour).withAlpha (0.22f));
+                g.fillRect (b);
+            }
 
             g.setColour (juce::Colour (colour));               // top accent strip
             g.fillRect (b.removeFromTop (3.0f));
             g.setColour (juce::Colours::black.withAlpha (0.4f)); // divider
             g.drawVerticalLine (getWidth() - 1, 0.0f, (float) getHeight());
 
-            auto numRow = b.removeFromTop (16.0f);
-            g.setColour (juce::Colour (active ? Theme::text : Theme::textDim));
-            g.setFont (juce::Font (juce::FontOptions (13.0f, juce::Font::bold)));
-            g.drawText (juce::String (group), numRow, juce::Justification::centred);
+            const auto inner = b.reduced (12.0f, 0.0f);
+            const auto dot = juce::Rectangle<float> (inner.getX(), inner.getCentreY() - 4.0f, 8.0f, 8.0f);
+            g.setColour (juce::Colour (colour));
+            g.fillEllipse (dot);
 
-            g.setFont (juce::Font (juce::FontOptions (10.5f)));
-            g.setColour (juce::Colour (active ? Theme::text : Theme::textDim));
-            g.drawText (name, b.reduced (2.0f, 0.0f), juce::Justification::centredTop, true);
+            g.setFont (juce::Font (juce::FontOptions (13.0f).withStyle ("Bold")));
+            const auto labelColour = juce::Colour (active ? Theme::text : Theme::textDim);
+            const auto countColour = juce::Colour (active ? colour : Theme::textDim);
+            const float textY = inner.getCentreY() - 6.0f;
+            const float labelX = dot.getRight() + 6.0f;
+            const float labelW = (float) g.getCurrentFont().getStringWidth (label) + 2.0f;
+
+            g.setColour (labelColour);
+            g.drawText (label, juce::Rectangle<float> (labelX, textY, labelW, 12.0f).toNearestInt(),
+                        juce::Justification::centredLeft, true);
+
+            if (count > 0)
+            {
+                g.setColour (countColour);
+                g.drawText (juce::String (count), juce::Rectangle<float> (labelX + labelW + 6.0f, textY, 30.0f, 12.0f).toNearestInt(),
+                            juce::Justification::centredLeft, true);
+            }
         }
     };
 
@@ -59,7 +91,7 @@ namespace strata::ui
             viewedGroup = proc.getGroup() != 0 ? proc.getGroup() : 1;
 
             // Bucket tabs: switch which group/bucket is displayed.
-            for (int g = 1; g <= 8; ++g)
+            for (int g = 0; g <= 8; ++g)
             {
                 auto* t = tabs.add (new BucketTab());
                 t->group = g;
@@ -73,13 +105,18 @@ namespace strata::ui
             bucketName.setEditable (false, true, false);
             bucketName.onTextChange = [this]
             {
-                link::InstanceRegistry::getInstance().setBucketName (viewedGroup, bucketName.getText());
+                if (viewedGroup != 0)
+                    link::InstanceRegistry::getInstance().setBucketName (viewedGroup, bucketName.getText());
             };
             addAndMakeVisible (bucketName);
 
             // ASSIGN: add/remove any instance to/from the viewed bucket.
             assignBtn.onClick = [this] { showAssignMenu(); };
             addAndMakeVisible (assignBtn);
+
+            columnsViewport.setViewedComponent (&columnsContent, false);
+            columnsViewport.setScrollBarsShown (false, true);
+            addAndMakeVisible (columnsViewport);
 
             startTimerHz (24);
         }
@@ -96,7 +133,9 @@ namespace strata::ui
             {
                 g.setColour (juce::Colour (Theme::textDim));
                 g.setFont (juce::Font (juce::FontOptions (13.0f)));
-                g.drawText ("No channels in this bucket yet. Use ASSIGN to add STRATA instances.",
+                g.drawText (viewedGroup == 0
+                                ? "No channels in the session yet."
+                                : "No channels in this bucket yet. Use ASSIGN to add STRATA instances.",
                             getLocalBounds().reduced (20).withTrimmedTop (kHeaderH),
                             juce::Justification::centredTop, true);
             }
@@ -113,9 +152,37 @@ namespace strata::ui
             auto rightCol = row1.removeFromRight (66).reduced (4, 3);
             assignBtn.setBounds (rightCol.removeFromTop (16));
 
-            const int n8 = (int) tabs.size();
-            const int tw = n8 > 0 ? row1.getWidth() / n8 : 0;
-            for (auto* t : tabs) t->setBounds (row1.removeFromLeft (tw));
+            std::vector<BucketTab*> visibleTabs;
+            visibleTabs.reserve ((size_t) tabs.size());
+            for (auto* t : tabs)
+                if (t->isVisible())
+                    visibleTabs.push_back (t);
+
+            std::vector<int> widths;
+            widths.reserve (visibleTabs.size());
+            int total = 0;
+            for (auto* t : visibleTabs)
+            {
+                const int w = t->preferredWidth();
+                widths.push_back (w);
+                total += w;
+            }
+
+            const int gap = visibleTabs.empty() ? 0 : 2;
+            const int available = juce::jmax (1, row1.getWidth() - gap * juce::jmax (0, (int) visibleTabs.size() - 1));
+            if (total > available)
+            {
+                const float scale = (float) available / juce::jmax (1.0f, (float) total);
+                for (auto& w : widths)
+                    w = juce::jmax (56, (int) juce::roundToInt ((float) w * scale));
+            }
+
+            int x = row1.getX();
+            for (size_t i = 0; i < visibleTabs.size(); ++i)
+            {
+                visibleTabs[i]->setBounds (x, row1.getY(), widths[i], row1.getHeight());
+                x += widths[i] + gap;
+            }
 
             // row 2: swatch | editable bucket name (renames the viewed bucket)
             auto row2 = r.removeFromTop (kNameRow).reduced (4, 2);
@@ -123,11 +190,20 @@ namespace strata::ui
             row2.removeFromLeft (6);
             bucketName.setBounds (row2);
 
+            columnsViewport.setBounds (r.reduced (4, 4));
+
             const int n = (int) columns.size();
-            if (n == 0) return;
-            const int w = juce::jmax (72, r.getWidth() / n);
+            const int columnW = 110;
+            const int columnGap = 8;
+            const int contentW = juce::jmax (columnsViewport.getWidth(), n * columnW + juce::jmax (0, n - 1) * columnGap);
+            columnsContent.setBounds (0, 0, contentW, juce::jmax (1, columnsViewport.getHeight()));
+
+            int columnX = 0;
             for (auto& c : columns)
-                c->setBounds (r.removeFromLeft (w).reduced (3));
+            {
+                c->setBounds (columnX, 0, columnW, columnsContent.getHeight());
+                columnX += columnW + columnGap;
+            }
         }
 
     private:
@@ -256,15 +332,18 @@ namespace strata::ui
                     for (int gy = 0; gy < 3; ++gy)
                         g.fillEllipse (6.0f + (float) gx * 4.0f, 10.0f + (float) gy * 4.0f, 2.0f, 2.0f);
 
-                // gain-staging health wash behind the fader (volunteer-friendly:
-                // green = good input level, amber/red = too hot, blue/grey = low)
-                const auto hc = healthClip ? juce::Colour (0xffe5484d) // latched clip -> red
-                                           : healthColour (healthHeldDb);
-                g.setGradientFill (juce::ColourGradient (hc.withAlpha (0.42f), faderBg.getCentreX(), faderBg.getY(),
-                                                         hc.withAlpha (0.14f), faderBg.getCentreX(), faderBg.getBottom(), false));
-                g.fillRoundedRectangle (faderBg, 4.0f);
+                // gain-staging health wash behind the fader: narrow bar, not a
+                // full-panel tint. It reads like the design-system fader card.
+                const auto hc = healthClip ? juce::Colour (0xffe5484d) : healthColour (healthHeldDb);
+                const float norm = juce::jlimit (0.0f, 1.0f, (healthHeldDb + 60.0f) / 72.0f);
+                const float washH = juce::jmax (4.0f, faderBg.getHeight() * norm);
+                auto wash = juce::Rectangle<float> (faderBg.getCentreX() - 4.5f,
+                                                     faderBg.getBottom() - washH,
+                                                     9.0f, washH);
+                g.setColour (hc.withAlpha (0.38f));
+                g.fillRoundedRectangle (wash, 2.0f);
                 g.setColour (hc.withAlpha (0.7f));
-                g.drawRoundedRectangle (faderBg.reduced (0.5f), 4.0f, 1.0f);
+                g.drawRoundedRectangle (wash.reduced (0.5f), 2.0f, 1.0f);
             }
 
             // Pulled from the live instance each tick (message thread).
@@ -302,7 +381,7 @@ namespace strata::ui
                 inOut.setButtonText (c->isBypassed() ? "OUT" : "IN");
 
                 linkId = c->getLinkId();
-                linkBtn.setButtonText (linkId == 0 ? "LINK" : "LINK " + juce::String (linkId));
+                linkBtn.setButtonText (linkId == 0 ? "L1" : "L" + juce::String (linkId));
                 linkBtn.setToggleState (linkId != 0, juce::dontSendNotification);
                 repaint();
             }
@@ -312,7 +391,7 @@ namespace strata::ui
             juce::Label      name;
             juce::Slider     gain;
             juce::TextButton inOut { "IN" };
-            juce::TextButton linkBtn { "LINK" };
+            juce::TextButton linkBtn { "L1" };
             VuMeter          vu;
             int              linkId = 0;
             int              targetMeterType = 0;
@@ -336,7 +415,25 @@ namespace strata::ui
         {
             if (reordering) return; // don't touch layout/values mid-drag
 
-            auto live = link::InstanceRegistry::getInstance().clientsInGroup (viewedGroup);
+            auto& reg = link::InstanceRegistry::getInstance();
+            std::vector<link::InstanceClient*> live;
+            std::array<int, 9> counts { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            if (viewedGroup == 0)
+            {
+                for (int g = 1; g <= 8; ++g)
+                {
+                    auto groupClients = reg.clientsInGroup (g);
+                    counts[(size_t) g] = (int) groupClients.size();
+                    live.insert (live.end(), groupClients.begin(), groupClients.end());
+                }
+            }
+            else
+            {
+                live = reg.clientsInGroup (viewedGroup);
+                for (auto* c : live)
+                    ++counts[(size_t) c->getGroupId()];
+            }
+
             const auto selfUuid = proc.getUuid();
 
             // Rebuild columns when the membership set OR the viewed bucket changes.
@@ -354,7 +451,7 @@ namespace strata::ui
                     col->onHeaderDown = [this, cp] (const juce::MouseEvent& e) { beginReorder (cp, e); };
                     col->onHeaderDrag = [this, cp] (const juce::MouseEvent& e) { dragReorder  (cp, e); };
                     col->onHeaderUp   = [this, cp] (const juce::MouseEvent&)   { endReorder   (cp); };
-                    addAndMakeVisible (*col);
+                    columnsContent.addAndMakeVisible (*col);
                     columns.push_back (std::move (col));
                 }
                 resized();
@@ -362,30 +459,28 @@ namespace strata::ui
             }
 
             // Keep the header (tabs / bucket name / meter source) in sync.
-            auto& reg = link::InstanceRegistry::getInstance();
             if (! bucketName.isBeingEdited())
-                bucketName.setText (reg.getBucketName (viewedGroup), juce::dontSendNotification);
-            for (int g = 1; g <= 8; ++g)
+                bucketName.setText (viewedGroup == 0 ? juce::String ("All") : reg.getBucketName (viewedGroup),
+                                    juce::dontSendNotification);
+            assignBtn.setEnabled (viewedGroup != 0);
+            for (int g = 0; g <= 8; ++g)
             {
-                auto* t = tabs[g - 1];
-                const auto nm = reg.getBucketName (g);
-                const bool custom = nm != ("Group " + juce::String (g)); // show name only if set
+                auto* t = tabs[g];
+                const auto nm = g == 0 ? juce::String ("All") : reg.getBucketName (g);
+                const bool custom = g == 0 || nm != ("Group " + juce::String (g));
                 const bool active = (g == viewedGroup);
-                if (t->active != active || t->name != (custom ? nm : juce::String())
-                    || t->colour != reg.getBucketColour (g))
-                {
-                    t->active = active;
-                    t->name   = custom ? nm : juce::String();
-                    t->colour = reg.getBucketColour (g);
-                    t->repaint();
-                }
+                const bool visible = g == 0 || counts[(size_t) g] > 0 || custom || active;
+                t->setVisible (visible);
+                t->active = active;
+                t->label  = nm;
+                t->count  = g == 0 ? (int) live.size() : counts[(size_t) g];
+                t->colour = g == 0 ? juce::Colour (Theme::textDim).getARGB() : reg.getBucketColour (g);
+                t->repaint();
             }
-
-            const auto colour = reg.getBucketColour (viewedGroup);
 
             // Update each column from its live client.
             for (size_t i = 0; i < columns.size() && i < live.size(); ++i)
-                columns[i]->refresh (live[i], colour);
+                columns[i]->refresh (live[i], reg.getBucketColour (live[i]->getGroupId()));
         }
 
         //---- Drag-to-reorder columns ------------------------------------
@@ -396,25 +491,25 @@ namespace strata::ui
             return -1;
         }
 
-        juce::Rectangle<int> columnsArea() const { return getLocalBounds().withTrimmedTop (kHeaderH); }
-
         void layoutExcept (Column* skip)
         {
             const int n = (int) columns.size();
             if (n == 0) return;
-            auto r = columnsArea();
-            const int w = juce::jmax (72, r.getWidth() / n);
+            auto contentW = juce::jmax (columnsViewport.getWidth(), n * 110 + juce::jmax (0, n - 1) * 8);
+            columnsContent.setBounds (0, 0, contentW, juce::jmax (1, columnsViewport.getHeight()));
+            int columnX = 0;
             for (auto& cc : columns)
             {
-                auto slot = r.removeFromLeft (w).reduced (3);
-                if (cc.get() != skip) cc->setBounds (slot);
+                if (cc.get() != skip)
+                    cc->setBounds (columnX, 0, 110, columnsContent.getHeight());
+                columnX += 118;
             }
         }
 
         void beginReorder (Column* c, const juce::MouseEvent& e)
         {
             dragCol = c; reordering = true;
-            grabOffsetX = e.x;
+            grabOffsetX = e.getEventRelativeTo (&columnsContent).x - c->getX();
             c->toFront (false);
         }
 
@@ -425,11 +520,11 @@ namespace strata::ui
             if (n <= 1) return;
 
             const int w = c->getWidth();
-            const int newX = juce::jlimit (0, getWidth() - w,
-                                           e.getEventRelativeTo (this).x - grabOffsetX);
-            c->setTopLeftPosition (newX, c->getY());
+            const int newX = juce::jlimit (0, juce::jmax (0, columnsContent.getWidth() - w),
+                                           e.getEventRelativeTo (&columnsContent).x - grabOffsetX);
+            c->setTopLeftPosition (newX, 0);
 
-            const int slotW = juce::jmax (1, getWidth() / n);
+            const int slotW = 118;
             const int target = juce::jlimit (0, n - 1, (newX + w / 2) / slotW);
             const int current = indexOf (c);
             if (target != current && current >= 0)
@@ -498,6 +593,8 @@ namespace strata::ui
         juce::TextButton assignBtn { "ASSIGN" };
         juce::Label      bucketName;
         juce::Rectangle<float> headerSwatch;
+        juce::Viewport columnsViewport;
+        juce::Component columnsContent;
         int  viewedGroup = 1;
         int  builtGroup = -1;
     };

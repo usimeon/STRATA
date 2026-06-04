@@ -1,6 +1,7 @@
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <utility>
+#include <vector>
 #include "../link/InstanceRegistry.h"
 #include "LookAndFeel.h"
 
@@ -63,8 +64,7 @@ namespace strata::ui
                 return;
 
             const float gap = 4.0f;
-            const float pillW = juce::jmax (1.0f, (bounds.getWidth() - gap * (float) juce::jmax (0, n - 1)) / (float) n);
-            const float pillH = bounds.getHeight();
+            auto layout = getLayout (bounds, gap);
             const auto baseFill = juce::Colour (Theme::panel);
             const auto hoverFill = juce::Colour (0xff232a33);
             const auto border = juce::Colour (Theme::stroke);
@@ -73,8 +73,7 @@ namespace strata::ui
 
             for (int i = 0; i < n; ++i)
             {
-                const float x = bounds.getX() + (float) i * (pillW + gap);
-                const auto pill = juce::Rectangle<float> (x, bounds.getY(), pillW, pillH);
+                const auto pill = layout[(size_t) i];
                 const bool active = (i == selectedIndex);
                 const bool hover  = (i == hoveredIndex);
 
@@ -90,6 +89,43 @@ namespace strata::ui
         }
 
     private:
+        std::vector<juce::Rectangle<float>> getLayout (juce::Rectangle<float> bounds, float gap) const
+        {
+            std::vector<juce::Rectangle<float>> out;
+            const int n = labels.size();
+            out.reserve ((size_t) juce::jmax (0, n));
+            if (n <= 0)
+                return out;
+
+            juce::Font font (juce::FontOptions (10.5f).withStyle ("Bold"));
+            std::vector<float> widths;
+            widths.reserve ((size_t) n);
+
+            float total = 0.0f;
+            for (int i = 0; i < n; ++i)
+            {
+                const float w = (float) font.getStringWidth (labels[i]) + 16.0f;
+                widths.push_back (w);
+                total += w;
+            }
+
+            const float available = juce::jmax (1.0f, bounds.getWidth() - gap * (float) juce::jmax (0, n - 1));
+            if (total > available)
+            {
+                const float scale = available / juce::jmax (1.0f, total);
+                for (auto& w : widths)
+                    w = juce::jmax (34.0f, w * scale);
+            }
+
+            float x = bounds.getX();
+            for (int i = 0; i < n; ++i)
+            {
+                out.emplace_back (x, bounds.getY(), widths[(size_t) i], bounds.getHeight());
+                x += widths[(size_t) i] + gap;
+            }
+            return out;
+        }
+
         void updateHover (juce::Point<float> position)
         {
             const int next = indexAt (position);
@@ -121,13 +157,11 @@ namespace strata::ui
 
             const auto bounds = getLocalBounds().toFloat();
             const float gap = 4.0f;
-            const float pillW = juce::jmax (1.0f, (bounds.getWidth() - gap * (float) juce::jmax (0, n - 1)) / (float) n);
+            const auto layout = getLayout (bounds, gap);
 
             for (int i = 0; i < n; ++i)
             {
-                const float x = bounds.getX() + (float) i * (pillW + gap);
-                const auto pill = juce::Rectangle<float> (x, bounds.getY(), pillW, bounds.getHeight());
-                if (pill.contains (position))
+                if (layout[(size_t) i].contains (position))
                     return i;
             }
 

@@ -20,14 +20,19 @@ private:
     void timerCallback() override;          // 30 Hz UI refresh
     void refreshLinkPanel();                 // registry changed
     void setChannelViewMode (bool on);       // toggle strip <-> overview
+    void setUiScale (float scale);          // fixed GUI scale percentage
+    void updateWindowSize();                // size window to mode + scale
     void layoutStrip (juce::Rectangle<int>); // normal single-channel layout
 
     StrataProcessor& proc;
     strata::ui::StrataLookAndFeel lnf;
+    juce::Component content;
 
+    juce::ComboBox guiScaleBox;
     juce::TextButton chViewBtn { "CHANNEL VIEW" };
     strata::ui::ChannelView channelView { proc };
     bool channelViewMode = false;
+    float uiScale = 1.0f;
 
     using APVTS = juce::AudioProcessorValueTreeState;
     using SliderAttach = APVTS::SliderAttachment;
