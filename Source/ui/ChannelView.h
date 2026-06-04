@@ -125,7 +125,7 @@ namespace strata::ui
 
             const int n = (int) columns.size();
             if (n == 0) return;
-            const int w = juce::jmax (60, r.getWidth() / n);
+            const int w = juce::jmax (72, r.getWidth() / n);
             for (auto& c : columns)
                 c->setBounds (r.removeFromLeft (w).reduced (3));
         }
@@ -156,7 +156,7 @@ namespace strata::ui
                 gain.setSliderStyle (juce::Slider::LinearVertical);
                 gain.setRange (-24.0, 24.0, 0.01);
                 gain.setLookAndFeel (&faderLnf);
-                gain.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 56, 16);
+                gain.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
                 gain.setTextValueSuffix (" dB");
                 gain.setDoubleClickReturnValue (true, 0.0);
                 // Only push to the target on real user interaction, and remember
@@ -403,7 +403,7 @@ namespace strata::ui
             const int n = (int) columns.size();
             if (n == 0) return;
             auto r = columnsArea();
-            const int w = juce::jmax (60, r.getWidth() / n);
+            const int w = juce::jmax (72, r.getWidth() / n);
             for (auto& cc : columns)
             {
                 auto slot = r.removeFromLeft (w).reduced (3);

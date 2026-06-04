@@ -1,6 +1,32 @@
 #include "PluginEditor.h"
+#include <cmath>
 
 using namespace strata;
+
+namespace
+{
+    static void setChoiceParam (juce::AudioProcessorValueTreeState& apvts,
+                                const juce::String& paramId, int index)
+    {
+        if (auto* p = apvts.getParameter (paramId))
+        {
+            const float norm = apvts.getParameterRange (paramId).convertTo0to1 ((float) index);
+            if (std::abs (p->getValue() - norm) < 1.0e-6f)
+                return;
+
+            p->beginChangeGesture();
+            p->setValueNotifyingHost (norm);
+            p->endChangeGesture();
+        }
+    }
+
+    static int getChoiceIndex (juce::AudioProcessorValueTreeState& apvts, const juce::String& paramId)
+    {
+        if (auto* raw = apvts.getRawParameterValue (paramId))
+            return juce::roundToInt (raw->load());
+        return 0;
+    }
+}
 
 StrataEditor::StrataEditor (StrataProcessor& p)
     : AudioProcessorEditor (p), proc (p)
@@ -31,13 +57,24 @@ StrataEditor::StrataEditor (StrataProcessor& p)
     monoAtt   = std::make_unique<ButtonAttach> (proc.apvts, params::monoSum,     monoBtn);
     phaseAtt  = std::make_unique<ButtonAttach> (proc.apvts, params::phaseInvert, phaseBtn);
 
-    meterTypeBox.addItemList (params::meterTypeChoices, 1);
-    addAndMakeVisible (meterTypeBox);
-    meterTypeAtt = std::make_unique<ComboAttach> (proc.apvts, params::meterType, meterTypeBox);
+    meterTypePills.onChange = [this] (int index) { setChoiceParam (proc.apvts, params::meterType, index); };
+    monitorPills.onChange   = [this] (int index) { setChoiceParam (proc.apvts, params::monitorMode, index); };
+    addAndMakeVisible (meterTypePills);
+    addAndMakeVisible (monitorPills);
 
-    monitorBox.addItemList (params::monitorChoices, 1);
-    addAndMakeVisible (monitorBox);
-    monitorAtt = std::make_unique<ComboAttach> (proc.apvts, params::monitorMode, monitorBox);
+    groupLabel.setText ("GROUP", juce::dontSendNotification);
+    groupLabel.setJustificationType (juce::Justification::centredLeft);
+    groupLabel.setColour (juce::Label::textColourId, juce::Colour (ui::Theme::textDim));
+    groupLabel.setInterceptsMouseClicks (false, false);
+    groupLabel.setFont (juce::Font (juce::FontOptions (9.0f).withStyle ("Bold")));
+    addAndMakeVisible (groupLabel);
+
+    groupDots.onChange = [this] (int group) { proc.setGroup (group); };
+    addAndMakeVisible (groupDots);
+
+    meterTypePills.setSelectedIndex (getChoiceIndex (proc.apvts, params::meterType));
+    monitorPills.setSelectedIndex (getChoiceIndex (proc.apvts, params::monitorMode));
+    groupDots.setSelectedGroup (proc.getGroup());
 
     addAndMakeVisible (meter);
     meter.onClear = [this] { proc.clearMeterClip(); };
@@ -54,15 +91,9 @@ StrataEditor::StrataEditor (StrataProcessor& p)
     nameLabel.setEditable (true);
     nameLabel.setJustificationType (juce::Justification::centred);
     nameLabel.setColour (juce::Label::backgroundColourId, juce::Colour (ui::Theme::panel));
+    nameLabel.setFont (juce::Font (juce::FontOptions (13.0f)));
     nameLabel.onTextChange = [this] { proc.setInstanceName (nameLabel.getText()); };
     addAndMakeVisible (nameLabel);
-
-    // ---- Group selector ----
-    groupBox.addItem ("No Group", 1);
-    for (int i = 1; i <= 8; ++i) groupBox.addItem ("Group " + juce::String (i), i + 1);
-    groupBox.setSelectedId (proc.getGroup() + 1, juce::dontSendNotification);
-    groupBox.onChange = [this] { proc.setGroup (groupBox.getSelectedId() - 1); };
-    addAndMakeVisible (groupBox);
 
     // ---- Channel View toggle (control-surface overview) ----
     chViewBtn.setClickingTogglesState (true);
@@ -96,18 +127,16 @@ void StrataEditor::timerCallback()
 
     auto& s = proc.getOutputMeters(); // the meter shows what leaves the plugin
     meter.setValues (s.rmsDb.load(), s.peakDb.load(), s.peakHold.load(), s.clip.load());
+
+    meterTypePills.setSelectedIndex (getChoiceIndex (proc.apvts, params::meterType));
+    monitorPills.setSelectedIndex (getChoiceIndex (proc.apvts, params::monitorMode));
+    groupDots.setSelectedGroup (proc.getGroup());
 }
 
 void StrataEditor::refreshLinkPanel()
 {
     nameLabel.setText (proc.getInstanceName(), juce::dontSendNotification);
-
-    // Reflect custom bucket names in the group selector (id = group + 1).
-    auto& reg = strata::link::InstanceRegistry::getInstance();
-    for (int g = 1; g <= 8; ++g)
-        groupBox.changeItemText (g + 1, reg.getBucketName (g));
-
-    groupBox.setSelectedId (proc.getGroup() + 1, juce::dontSendNotification);
+    groupDots.setSelectedGroup (proc.getGroup());
 }
 
 void StrataEditor::paint (juce::Graphics& g)
@@ -136,7 +165,8 @@ void StrataEditor::setChannelViewMode (bool on)
     nameLabel.setVisible (strip); inGain.setVisible (strip);
     bypassBtn.setVisible (strip); muteBtn.setVisible (strip);
     monoBtn.setVisible (strip);   phaseBtn.setVisible (strip);
-    meterTypeBox.setVisible (strip); monitorBox.setVisible (strip); groupBox.setVisible (strip);
+    meterTypePills.setVisible (strip); monitorPills.setVisible (strip);
+    groupLabel.setVisible (strip); groupDots.setVisible (strip);
     meter.setVisible (strip);
     channelView.setVisible (on);
 
@@ -168,9 +198,9 @@ void StrataEditor::layoutStrip (juce::Rectangle<int> r)
     meter.setBounds (r.removeFromTop (juce::roundToInt ((float) r.getHeight() * 0.42f)).reduced (3));
 
     r.removeFromTop (8);
-    auto meterRow = r.removeFromTop (24); // meter type + monitor selectors
-    meterTypeBox.setBounds (meterRow.removeFromLeft (meterRow.getWidth() / 2).reduced (2, 0));
-    monitorBox  .setBounds (meterRow.reduced (2, 0));
+    meterTypePills.setBounds (r.removeFromTop (24));
+    r.removeFromTop (6);
+    monitorPills.setBounds (r.removeFromTop (24));
     r.removeFromTop (8);
 
     // single INPUT trim knob (centred)
@@ -186,5 +216,7 @@ void StrataEditor::layoutStrip (juce::Rectangle<int> r)
     phaseBtn .setBounds (btns.reduced (2));
 
     r.removeFromTop (8);
-    groupBox.setBounds (r.removeFromTop (26));
+    auto groupRow = r.removeFromTop (22);
+    groupLabel.setBounds (groupRow.removeFromLeft (46).reduced (2, 0));
+    groupDots.setBounds (groupRow.reduced (0, 2));
 }

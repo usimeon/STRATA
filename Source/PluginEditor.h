@@ -2,6 +2,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
 #include "ui/LookAndFeel.h"
+#include "ui/ChoiceControls.h"
 #include "ui/VuMeter.h"
 #include "ui/ChannelView.h"
 
@@ -31,7 +32,6 @@ private:
     using APVTS = juce::AudioProcessorValueTreeState;
     using SliderAttach = APVTS::SliderAttachment;
     using ButtonAttach = APVTS::ButtonAttachment;
-    using ComboAttach  = APVTS::ComboBoxAttachment;
 
     juce::Slider   inGain;                 // single INPUT trim knob (for now)
     std::unique_ptr<SliderAttach> inGainAtt;
@@ -40,13 +40,14 @@ private:
                      phaseBtn { juce::String::fromUTF8 ("\xC3\x98") }; // Ø polarity
     std::unique_ptr<ButtonAttach> bypassAtt, muteAtt, monoAtt, phaseAtt;
 
-    juce::ComboBox meterTypeBox, monitorBox;
-    std::unique_ptr<ComboAttach> meterTypeAtt, monitorAtt;
+    strata::ui::PillBar   meterTypePills { strata::params::meterTypeChoices };
+    strata::ui::PillBar   monitorPills   { strata::params::monitorChoices };
+    juce::Label           groupLabel;
+    strata::ui::BucketDots groupDots;
 
     strata::ui::VuMeter meter;              // single meter — shows plugin output
 
     juce::Label    nameLabel;       // editable channel name
-    juce::ComboBox groupBox;        // group selector (0 = none, 1..8)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (StrataEditor)
 };
