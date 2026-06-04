@@ -3,9 +3,13 @@
 #include "LookAndFeel.h"
 
 /*  Classic analog-style VU meter (cream dial, ink scale, black needle, red
-    zone, peak/clip LED, orange hold needle, numeric readout) — inspired by the
-    look of hardware VU meters. Reads atomic snapshots set by the audio thread;
-    NO audio-thread coupling. */
+    zone, peak/clip LED, orange hold needle, numeric readout).
+
+    Scale is non-linear — ANSI/IEC standard VU spacing, matching a real
+    hardware meter face.  The "VU" / meter-type label sits centered on the
+    dial face, not at the top, exactly as printed on a physical meter.
+
+    Reads atomic snapshots set by the audio thread; NO audio-thread coupling. */
 namespace strata::ui
 {
     class VuMeter : public juce::Component
@@ -26,12 +30,39 @@ namespace strata::ui
             static constexpr juce::uint32 ledOn   = 0xffe5483d;
         };
 
+        // Non-linear ANSI VU scale: each entry maps a VU value → normalised
+        // position t ∈ [0,1] along the arc from kA0 to kA1.
+        struct VuMark { float vu; float t; };
+        static constexpr VuMark kScale[] = {
+            { -20.0f, 0.000f }, { -10.0f, 0.218f }, {  -7.0f, 0.324f },
+            {  -5.0f, 0.410f }, {  -3.0f, 0.508f }, {  -2.0f, 0.570f },
+            {  -1.0f, 0.636f }, {   0.0f, 0.710f }, {  +1.0f, 0.793f },
+            {  +2.0f, 0.870f }, {  +3.0f, 1.000f }
+        };
+        static constexpr int kScaleN = 11;
+
+        // Map a VU value to normalised arc position using piecewise linear
+        // interpolation between the ANSI scale marks.
+        static float tForVu (float vu) noexcept
+        {
+            vu = juce::jlimit (-20.0f, 3.0f, vu);
+            for (int i = 0; i < kScaleN - 1; ++i)
+            {
+                if (vu >= kScale[i].vu && vu <= kScale[i + 1].vu)
+                {
+                    const float frac = (vu - kScale[i].vu) / (kScale[i + 1].vu - kScale[i].vu);
+                    return kScale[i].t + frac * (kScale[i + 1].t - kScale[i].t);
+                }
+            }
+            return vu <= -20.0f ? 0.0f : 1.0f;
+        }
+
         // values pushed by the editor timer
         void setValues (float rmsDb, float peakDb, float peakHoldDb, bool clip) noexcept
         {
             const float vuDb = (rmsDb + scaleOffset) - referenceDb; // 0 VU at refDb
-            needle = juce::jlimit (0.0f, 1.0f, (vuDb + 20.0f) / 23.0f);
-            if (needle > holdNeedle) holdNeedle = needle;           // latched VU hold
+            needle = tForVu (juce::jlimit (-20.0f, 3.0f, vuDb));
+            if (needle > holdNeedle) holdNeedle = needle;            // latched VU hold
             peak = peakDb; hold = peakHoldDb; clipped = clip;
             repaint();
         }
@@ -53,7 +84,7 @@ namespace strata::ui
         void mouseDown (const juce::MouseEvent&) override { dragStartRef = referenceDb; dragged = false; }
         void mouseDrag (const juce::MouseEvent& e) override
         {
-            if (! onCalibrate) return;             // disabled for fixed (K) scales
+            if (! onCalibrate) return;
             dragged = true;
             const float ref = juce::jlimit (-30.0f, -6.0f,
                                             dragStartRef + (float) e.getDistanceFromDragStartY() * 0.1f);
@@ -68,21 +99,22 @@ namespace strata::ui
         {
             auto full = getLocalBounds().toFloat();
 
-            // bezel + cream dial face
+            // bezel
             g.setColour (juce::Colour (Face::bezel));
             g.fillRoundedRectangle (full, compact ? 4.0f : 7.0f);
+
+            // cream dial face (top-to-bottom gradient like a real meter face)
             auto face = full.reduced (compact ? 2.0f : 4.0f);
-            g.setGradientFill (juce::ColourGradient (juce::Colour (Face::creamHi), face.getCentreX(), face.getY(),
-                                                     juce::Colour (Face::creamLo), face.getCentreX(), face.getBottom(), false));
+            g.setGradientFill (juce::ColourGradient (
+                juce::Colour (Face::creamHi), face.getCentreX(), face.getY(),
+                juce::Colour (Face::creamLo), face.getCentreX(), face.getBottom(), false));
             g.fillRoundedRectangle (face, compact ? 3.0f : 5.0f);
-            g.setColour (juce::Colours::black.withAlpha (0.25f));
+            g.setColour (juce::Colours::black.withAlpha (0.22f));
             g.drawRoundedRectangle (face.reduced (0.6f), compact ? 3.0f : 5.0f, 1.0f);
 
             auto area = face.reduced (compact ? 4.0f : 8.0f);
 
-            // Carve distinct rows so nothing overlaps:
-            //   [ type label ][ ......... arc ......... ][ peak bar ][ readouts ]
-            auto typeRow = area.removeFromTop (compact ? 10.0f : 13.0f);
+            // Bottom rows — carved BEFORE the arc so nothing overlaps.
             juce::Rectangle<float> readoutRow;
             if (! compact) readoutRow = area.removeFromBottom (12.0f);
             auto peakRow = area.removeFromBottom (compact ? 5.0f : 7.0f);
@@ -94,15 +126,10 @@ namespace strata::ui
             drawPeakBar (g, peakRow);
             drawLed (g, face);
 
-            // type label (VU / RMS / K-20 …)
-            g.setColour (juce::Colour (Face::inkDim));
-            g.setFont (juce::Font (juce::FontOptions (compact ? 8.0f : 11.0f, juce::Font::bold)));
-            g.drawText (label, typeRow, juce::Justification::centred);
-
-            // numeric readouts (full size only)
+            // Numeric readouts (full size only)
             if (! compact)
             {
-                g.setColour (juce::Colour (Face::ink));
+                g.setColour (juce::Colour (Face::inkDim));
                 g.setFont (juce::Font (juce::FontOptions (9.0f)));
                 g.drawText (peak <= -99.0f ? "-inf" : juce::String (peak, 1) + " dB",
                             readoutRow.removeFromLeft (readoutRow.getWidth() * 0.5f),
@@ -113,15 +140,15 @@ namespace strata::ui
         }
 
     private:
-        // Clockwise from 12 o'clock. Rest = far left, full deflection = right.
-        static constexpr float kA0 = -0.92f; // ~ -53 deg : -20 VU
-        static constexpr float kA1 =  0.92f; // ~ +53 deg : +3 VU
+        // Arc angles, clockwise from 12 o'clock (JUCE convention).
+        static constexpr float kA0 = -0.92f; // −53° : −20 VU (far left)
+        static constexpr float kA1 =  0.92f; // +53° : +3 VU  (far right)
         static float angleFor (float t) noexcept { return kA0 + t * (kA1 - kA0); }
-        static float tForVu (float vu) noexcept  { return (vu + 20.0f) / 23.0f; }
 
         juce::Point<float> pivot (juce::Rectangle<float> r, float& radiusOut) const noexcept
         {
-            const float numMargin = compact ? 9.0f : 13.0f;
+            // Leave room for outer scale numbers above and sides.
+            const float numMargin = compact ? 9.0f : 16.0f;
             radiusOut = juce::jmin (r.getWidth() * 0.46f, r.getHeight() * 0.92f) - numMargin;
             return { r.getCentreX(), r.getBottom() - r.getHeight() * 0.08f };
         }
@@ -130,51 +157,97 @@ namespace strata::ui
         {
             float radius; const auto c = pivot (r, radius);
 
-            // main ink arc
-            juce::Path arc;
-            arc.addCentredArc (c.x, c.y, radius, radius, 0.0f, kA0, kA1, true);
+            // ── Arcs ─────────────────────────────────────────────────────────
+            // Black arc: −20 VU → 0 VU
+            const float t0 = kScale[7].t; // t at 0 VU
+            juce::Path arcBlk;
+            arcBlk.addCentredArc (c.x, c.y, radius, radius, 0.0f, kA0, angleFor (t0), true);
             g.setColour (juce::Colour (Face::ink));
-            g.strokePath (arc, juce::PathStrokeType (compact ? 1.5f : 2.0f));
+            g.strokePath (arcBlk, juce::PathStrokeType (compact ? 1.5f : 2.0f));
 
-            // red zone arc (0 VU .. +3)
-            juce::Path red;
-            red.addCentredArc (c.x, c.y, radius, radius, 0.0f, angleFor (tForVu (0.0f)), kA1, true);
+            // Red zone arc: 0 VU → +3 VU — thicker, like the reference meter
+            juce::Path arcRed;
+            arcRed.addCentredArc (c.x, c.y, radius, radius, 0.0f, angleFor (t0), kA1, true);
             g.setColour (juce::Colour (Face::red));
-            g.strokePath (red, juce::PathStrokeType (compact ? 2.5f : 3.5f));
+            g.strokePath (arcRed, juce::PathStrokeType (compact ? 3.0f : 5.0f));
 
-            // ticks
-            for (int i = 0; i <= 10; ++i)
+            // ── Ticks at every ANSI scale mark ───────────────────────────────
+            // Major: −20, −10, −5, 0, +3  |  minor: everything else
+            const auto isMajor = [](float vu) {
+                return vu == -20.0f || vu == -10.0f || vu == -5.0f
+                    || vu ==   0.0f || vu ==   3.0f;
+            };
+            for (int i = 0; i < kScaleN; ++i)
             {
-                const float t    = (float) i / 10.0f;
-                const float vuDb = t * 23.0f - 20.0f;
-                const float ang  = angleFor (t);
-                const float len  = (i % 5 == 0 ? 9.0f : 5.0f) * (compact ? 0.7f : 1.0f);
-                g.setColour (juce::Colour (vuDb >= 0.0f ? Face::red : Face::ink));
-                g.drawLine ({ c.getPointOnCircumference (radius - 1.0f, ang),
-                              c.getPointOnCircumference (radius - 1.0f - len, ang) },
-                            vuDb >= 0.0f ? 1.8f : 1.0f);
+                const float ang  = angleFor (kScale[i].t);
+                const bool  isRed = kScale[i].vu >= 0.0f;
+                const float len  = (isMajor (kScale[i].vu) ? 9.0f : 5.5f) * (compact ? 0.7f : 1.0f);
+                g.setColour (juce::Colour (isRed ? Face::red : Face::ink));
+                g.drawLine ({ c.getPointOnCircumference (radius - 0.5f, ang),
+                              c.getPointOnCircumference (radius - 0.5f - len, ang) },
+                            isRed ? 2.0f : 1.2f);
             }
 
-            // scale numbers
-            g.setFont (juce::Font (juce::FontOptions (compact ? 7.5f : 10.0f)));
-            for (int vu : { -20, -10, -7, -5, -3, 0, 3 })
+            if (compact) return; // compact mode: no text labels on the arc
+
+            // ── Outer scale numbers (outside the arc) ────────────────────────
+            // Convention matching real VU meters: −20 shown with minus sign,
+            // all others shown as absolute value; positive values use "+".
+            struct OuterLbl { float vu; const char* txt; };
+            static constexpr OuterLbl kOuter[] = {
+                { -20.0f, "-20" }, { -10.0f, "10" }, { -7.0f, "7" },
+                {  -5.0f, "5"   }, {  -3.0f, "3"  }, { 0.0f,  "0" },
+                {  +3.0f, "+3"  }
+            };
+            const float fs = juce::jmax (8.0f, radius * 0.112f);
+            g.setFont (juce::Font (juce::FontOptions (fs, juce::Font::bold)));
+            for (const auto& lbl : kOuter)
             {
-                const float ang = angleFor (tForVu ((float) vu));
-                const auto  p   = c.getPointOnCircumference (radius + (compact ? 6.0f : 8.0f), ang);
-                g.setColour (juce::Colour (vu >= 0 ? Face::red : Face::ink));
-                g.drawText (vu > 0 ? "+" + juce::String (vu) : juce::String (vu),
-                            juce::Rectangle<float> (p.x - 10.0f, p.y - 6.0f, 20.0f, 12.0f),
-                            juce::Justification::centred);
+                const float ang = angleFor (tForVu (lbl.vu));
+                const auto  p   = c.getPointOnCircumference (radius + 9.0f, ang);
+                g.setColour (juce::Colour (lbl.vu >= 0.0f ? Face::red : Face::ink));
+                g.drawText (lbl.txt,
+                    juce::Rectangle<float> (p.x - 12.0f, p.y - 7.0f, 24.0f, 14.0f),
+                    juce::Justification::centred);
             }
+
+            // ── Inner scale numbers (inside the arc, dimmer, smaller) ────────
+            // Mirrors the second row visible on the reference hardware meter.
+            struct InnerLbl { float vu; const char* txt; };
+            static constexpr InnerLbl kInner[] = {
+                { -20.0f, "-20" }, { -10.0f, "-10" }, { -5.0f, "-5" }, { 0.0f, "0" }
+            };
+            const float fsI = juce::jmax (7.0f, radius * 0.085f);
+            g.setFont (juce::Font (juce::FontOptions (fsI)));
+            g.setColour (juce::Colour (Face::inkDim));
+            for (const auto& il : kInner)
+            {
+                const float ang = angleFor (tForVu (il.vu));
+                const auto  p   = c.getPointOnCircumference (radius - 14.0f, ang);
+                g.drawText (il.txt,
+                    juce::Rectangle<float> (p.x - 10.0f, p.y - 5.0f, 20.0f, 10.0f),
+                    juce::Justification::centred);
+            }
+
+            // ── Meter type label centered on the face ────────────────────────
+            // Sits in the open space below the arc, above the needle pivot —
+            // exactly where "VU" is printed on a real hardware dial.
+            const float labelY = c.y - radius * 0.38f;
+            g.setColour (juce::Colour (Face::inkDim));
+            g.setFont (juce::Font (juce::FontOptions (12.0f, juce::Font::bold)));
+            g.drawText (label,
+                juce::Rectangle<float> (c.x - 28.0f, labelY - 9.0f, 56.0f, 18.0f),
+                juce::Justification::centred);
         }
 
         void drawNeedle (juce::Graphics& g, juce::Rectangle<float> r)
         {
             float radius; const auto c = pivot (r, radius);
             const auto tip = c.getPointOnCircumference (radius - 2.0f, angleFor (needle));
-            // needle shadow then needle
+            // subtle drop shadow
             g.setColour (juce::Colours::black.withAlpha (0.18f));
             g.drawLine ({ c.translated (0.8f, 0.8f), tip.translated (0.8f, 0.8f) }, compact ? 1.6f : 2.2f);
+            // needle (turns red while clip is latched)
             g.setColour (juce::Colour (clipped ? Face::red : Face::needle));
             g.drawLine ({ c, tip }, compact ? 1.6f : 2.2f);
             // pivot hub
