@@ -81,12 +81,6 @@ namespace strata::ui
             assignBtn.onClick = [this] { showAssignMenu(); };
             addAndMakeVisible (assignBtn);
 
-            // Meter source selector: switch all column meters input <-> output.
-            meterSrcBtn.setClickingTogglesState (true);
-            meterSrcBtn.setColour (juce::TextButton::buttonOnColourId, juce::Colour (Theme::accent));
-            meterSrcBtn.onClick = [this] { meterShowsInput = meterSrcBtn.getToggleState(); };
-            addAndMakeVisible (meterSrcBtn);
-
             startTimerHz (24);
         }
 
@@ -118,8 +112,6 @@ namespace strata::ui
             auto row1 = r.removeFromTop (kTabRow);
             auto rightCol = row1.removeFromRight (66).reduced (4, 3);
             assignBtn.setBounds (rightCol.removeFromTop (16));
-            rightCol.removeFromTop (3);
-            meterSrcBtn.setBounds (rightCol.removeFromTop (16));
 
             const int n8 = (int) tabs.size();
             const int tw = n8 > 0 ? row1.getWidth() / n8 : 0;
@@ -266,7 +258,8 @@ namespace strata::ui
 
                 // gain-staging health wash behind the fader (volunteer-friendly:
                 // green = good input level, amber/red = too hot, blue/grey = low)
-                const auto hc = healthColour (healthHeldDb);
+                const auto hc = healthClip ? juce::Colour (0xffe5484d) // latched clip -> red
+                                           : healthColour (healthHeldDb);
                 g.setGradientFill (juce::ColourGradient (hc.withAlpha (0.42f), faderBg.getCentreX(), faderBg.getY(),
                                                          hc.withAlpha (0.14f), faderBg.getCentreX(), faderBg.getBottom(), false));
                 g.fillRoundedRectangle (faderBg, 4.0f);
@@ -275,25 +268,25 @@ namespace strata::ui
             }
 
             // Pulled from the live instance each tick (message thread).
-            void refresh (link::InstanceClient* c, juce::uint32 bucketColour, bool showInput)
+            void refresh (link::InstanceClient* c, juce::uint32 bucketColour)
             {
                 accent = bucketColour;
                 name.setText (c->getDisplayName(), juce::dontSendNotification);
 
-                // Feed the analog VU from the selected source, using the target's
-                // own meter type / calibration.
+                // Meter shows the plugin OUTPUT, using the target's calibration.
                 targetMeterType = c->getMeterType();
                 vu.setScale (params::meterTypeLabel (targetMeterType),
                              c->getVuReferenceDb(), c->getMeterOffsetDb());
-                const float rms = showInput ? c->getInputRmsDb()  : c->getOutputRmsDb();
-                const float pk  = showInput ? c->getInputPeakDb() : c->getOutputPeakDb();
-                const bool  cl  = showInput ? c->getInputClip()   : c->getOutputClip();
-                vu.setValues (rms, pk, pk, cl);
+                const float rms = c->getOutputRmsDb();
+                const float pk  = c->getOutputPeakDb();
+                vu.setValues (rms, pk, pk, c->getOutputClip());
 
-                // Health wash tracks the INPUT level (what feeds downstream), with
-                // a peak-hold so the colour doesn't flicker between zones: it snaps
-                // up instantly, holds ~1.25 s, then eases down (~12 dB/s).
-                healthDb = c->getInputPeakDb();
+                // A clip (auto-releasing) forces the wash red.
+                healthClip = c->getOutputClip();
+
+                // Health wash tracks the output level, with a peak-hold so the
+                // colour doesn't flicker: snaps up, holds ~1.25 s, eases down.
+                healthDb = c->getOutputPeakDb();
                 if (healthDb >= healthHeldDb)   { healthHeldDb = healthDb; healthHold = kHealthHoldFrames; }
                 else if (healthHold > 0)        { --healthHold; }
                 else                            { healthHeldDb = juce::jmax (healthDb, healthHeldDb - kHealthReleaseDb); }
@@ -325,6 +318,7 @@ namespace strata::ui
             int              targetMeterType = 0;
             float            healthDb = -100.0f;     // instantaneous input peak
             float            healthHeldDb = -100.0f; // peak-held value used for colour
+            bool             healthClip = false;     // latched clip -> red until cleared
             int              healthHold = 0;         // frames remaining at the held peak
             static constexpr int   kHealthHoldFrames = 30;  // ~1.25 s at 24 Hz
             static constexpr float kHealthReleaseDb  = 0.5f; // dB/frame after hold (~12 dB/s)
@@ -371,8 +365,6 @@ namespace strata::ui
             auto& reg = link::InstanceRegistry::getInstance();
             if (! bucketName.isBeingEdited())
                 bucketName.setText (reg.getBucketName (viewedGroup), juce::dontSendNotification);
-            meterSrcBtn.setButtonText (meterShowsInput ? "IN" : "OUT");
-            meterSrcBtn.setToggleState (meterShowsInput, juce::dontSendNotification);
             for (int g = 1; g <= 8; ++g)
             {
                 auto* t = tabs[g - 1];
@@ -393,7 +385,7 @@ namespace strata::ui
 
             // Update each column from its live client.
             for (size_t i = 0; i < columns.size() && i < live.size(); ++i)
-                columns[i]->refresh (live[i], colour, meterShowsInput);
+                columns[i]->refresh (live[i], colour);
         }
 
         //---- Drag-to-reorder columns ------------------------------------
@@ -505,10 +497,8 @@ namespace strata::ui
         juce::OwnedArray<BucketTab> tabs;
         juce::TextButton assignBtn { "ASSIGN" };
         juce::Label      bucketName;
-        juce::TextButton meterSrcBtn { "OUT" };
         juce::Rectangle<float> headerSwatch;
         int  viewedGroup = 1;
         int  builtGroup = -1;
-        bool meterShowsInput = false;
     };
 }

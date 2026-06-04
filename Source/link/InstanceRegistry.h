@@ -50,15 +50,12 @@ namespace strata::link
         // --- Live state read by a controlling instance's Channel View -----
         // All lock-free atomic reads; safe from the message thread.
         virtual float getParamValue   (const juce::String& paramId) const = 0;
-        virtual float getOutputPeakDb () const = 0;
-        virtual float getInputPeakDb  () const = 0;
+        virtual float getOutputPeakDb () const = 0;   // the meter = plugin output
         virtual float getOutputRmsDb  () const = 0;
-        virtual float getInputRmsDb   () const = 0;
         virtual float getVuReferenceDb() const = 0;   // effective 0 VU point (dBFS)
         virtual int   getMeterType    () const = 0;   // params::MeterType index
         virtual float getMeterOffsetDb() const = 0;   // e.g. +3 for RMS+3
         virtual bool  getOutputClip   () const = 0;
-        virtual bool  getInputClip    () const = 0;
         virtual void  clearMeterClip  () = 0;
         virtual bool  isBypassed      () const = 0;
 

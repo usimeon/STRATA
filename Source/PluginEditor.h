@@ -43,10 +43,7 @@ private:
     juce::ComboBox meterTypeBox, monitorBox;
     std::unique_ptr<ComboAttach> meterTypeAtt, monitorAtt;
 
-    strata::ui::VuMeter meter;              // single meter
-    juce::TextButton inBtn { "IN" }, grBtn { "GR" }, outBtn { "OUT" }; // meter source
-    int meterSource = 0;                    // 0 = IN, 1 = GR, 2 = OUT
-    void setMeterSource (int s);
+    strata::ui::VuMeter meter;              // single meter — shows plugin output
 
     juce::Label    nameLabel;       // editable channel name
     juce::ComboBox groupBox;        // group selector (0 = none, 1..8)

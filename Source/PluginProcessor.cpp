@@ -45,14 +45,14 @@ bool StrataProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 void StrataProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     currentSampleRate = sampleRate;
+    clipHoldSamples = (int) (sampleRate * 2.5); // clip light auto-clears after ~2.5 s
     const int ch = getTotalNumOutputChannels();
 
     inputTrim .prepare (sampleRate, samplesPerBlock, ch);
     outputTrim.prepare (sampleRate, samplesPerBlock, ch);
 
-    for (auto* p : { &inPeakL, &inPeakR, &outPeakL, &outPeakR })
+    for (auto* p : { &outPeakL, &outPeakR })
         p->prepare (sampleRate, samplesPerBlock);
-    inVu.prepare (sampleRate);
     outVu.prepare (sampleRate);
 }
 
@@ -64,16 +64,15 @@ void StrataProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     const int n     = buffer.getNumSamples();
     auto* const* ch = buffer.getArrayOfWritePointers();
 
-    // ---- Bypass = clean passthrough, still meters raw ------------------
+    // ---- Bypass = clean passthrough, meter the (unchanged) output ------
     if (pBypass->load() >= 0.5f)
     {
-        if (numCh > 0) inPeakL.processBlock (ch[0], n);
-        if (numCh > 1) inPeakR.processBlock (ch[1], n);
-        inVu.processBlock (ch[0], n);
-        const float pk = juce::jmax (inPeakL.getEnvelope(),
-                                     numCh > 1 ? inPeakR.getEnvelope() : 0.0f);
-        inMeters.publish (pk, inVu.getRms());
-        outMeters.publish (pk, inVu.getRms());
+        if (numCh > 0) outPeakL.processBlock (ch[0], n);
+        if (numCh > 1) outPeakR.processBlock (ch[1], n);
+        outVu.processBlock (ch[0], n);
+        const float pk = juce::jmax (outPeakL.getEnvelope(),
+                                     numCh > 1 ? outPeakR.getEnvelope() : 0.0f);
+        outMeters.publish (pk, outVu.getRms(), n, clipHoldSamples);
         return;
     }
 
@@ -81,16 +80,6 @@ void StrataProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     inputTrim.setGainDb (pInGain->load());
     inputTrim.setPhaseInvert (pPhase->load() >= 0.5f);
     inputTrim.process (ch, numCh, n);
-
-    // ---- IN metering (POST input gain, pre everything else) ------------
-    if (numCh > 0) inPeakL.processBlock (ch[0], n);
-    if (numCh > 1) inPeakR.processBlock (ch[1], n);
-    inVu.processBlock (ch[0], n);
-    {
-        const float pk = juce::jmax (inPeakL.getEnvelope(),
-                                     numCh > 1 ? inPeakR.getEnvelope() : 0.0f);
-        inMeters.publish (pk, inVu.getRms());
-    }
 
     // ---- Mono sum (utility, zero latency) ------------------------------
     if (pMonoSum->load() >= 0.5f && numCh > 1)
@@ -137,7 +126,7 @@ void StrataProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     {
         const float pk = juce::jmax (outPeakL.getEnvelope(),
                                      numCh > 1 ? outPeakR.getEnvelope() : 0.0f);
-        outMeters.publish (pk, outVu.getRms());
+        outMeters.publish (pk, outVu.getRms(), n, clipHoldSamples);
     }
 }
 

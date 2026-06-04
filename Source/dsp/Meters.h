@@ -98,21 +98,39 @@ namespace strata::dsp
         std::atomic<float> rmsDb    { -100.0f }; // full-scale RMS dBFS (UI maps to VU)
         std::atomic<bool>  clip     { false };
 
-        void publish (float peakLin, float rmsLin) noexcept
+        std::atomic<int> clipHoldCtr { 0 }; // samples remaining before clip auto-clears
+
+        void publish (float peakLin, float rmsLin, int numSamples, int clipHoldSamples) noexcept
         {
             const float pdb = toDb (peakLin);
             peakDb.store (pdb,            std::memory_order_relaxed);
             rmsDb.store  (toDb (rmsLin),  std::memory_order_relaxed);
-            // latched peak-hold + clip; both cleared by clear() on user click
             if (pdb > peakHold.load (std::memory_order_relaxed))
                 peakHold.store (pdb, std::memory_order_relaxed);
-            if (peakLin >= 1.0f) clip.store (true, std::memory_order_relaxed);
+
+            // Clip lights instantly, holds, then auto-clears if no new clip.
+            if (peakLin >= 1.0f)
+            {
+                clip.store (true, std::memory_order_relaxed);
+                clipHoldCtr.store (clipHoldSamples, std::memory_order_relaxed);
+            }
+            else
+            {
+                int c = clipHoldCtr.load (std::memory_order_relaxed);
+                if (c > 0)
+                {
+                    c -= numSamples;
+                    clipHoldCtr.store (c, std::memory_order_relaxed);
+                    if (c <= 0) clip.store (false, std::memory_order_relaxed);
+                }
+            }
         }
 
-        // Reset latched indicators (message thread, lock-free).
+        // Reset indicators (message thread, lock-free) — manual click-to-clear.
         void clear() noexcept
         {
             clip.store (false, std::memory_order_relaxed);
+            clipHoldCtr.store (0, std::memory_order_relaxed);
             peakHold.store (-100.0f, std::memory_order_relaxed);
         }
 

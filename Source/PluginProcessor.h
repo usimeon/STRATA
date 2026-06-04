@@ -49,14 +49,11 @@ public:
     void  setRemoteParameter (const juce::String& paramId, float value) override;
     float getParamValue   (const juce::String& paramId) const override;
     float getOutputPeakDb () const override { return outMeters.peakDb.load(); }
-    float getInputPeakDb  () const override { return inMeters.peakDb.load(); }
     float getOutputRmsDb  () const override { return outMeters.rmsDb.load(); }
-    float getInputRmsDb   () const override { return inMeters.rmsDb.load(); }
     int   getMeterType    () const override;
     float getMeterOffsetDb() const override;
     bool  getOutputClip   () const override { return outMeters.clip.load(); }
-    bool  getInputClip    () const override { return inMeters.clip.load(); }
-    void  clearMeterClip  () override       { inMeters.clear(); outMeters.clear(); }
+    void  clearMeterClip  () override       { outMeters.clear(); }
     bool  isBypassed      () const override { return pBypass != nullptr && pBypass->load() >= 0.5f; }
     int   getLinkId       () const override { return linkId.load(); }
     void  setLinkId       (int id) override;                         // mirror set (0 == off)
@@ -67,7 +64,6 @@ public:
 
     //==== Public API used by the editor ======================================
     juce::AudioProcessorValueTreeState apvts;
-    const strata::dsp::MeterSnapshot& getInputMeters()  const { return inMeters; }
     const strata::dsp::MeterSnapshot& getOutputMeters() const { return outMeters; }
 
     juce::String getInstanceName() const            { return instanceName; }
@@ -97,9 +93,9 @@ private:
 
     //==== DSP ================================================================
     strata::dsp::GainTrim   inputTrim, outputTrim;
-    strata::dsp::PeakDetector inPeakL, inPeakR, outPeakL, outPeakR;
-    strata::dsp::VuDetector   inVu, outVu;
-    strata::dsp::MeterSnapshot inMeters, outMeters;
+    strata::dsp::PeakDetector outPeakL, outPeakR;
+    strata::dsp::VuDetector   outVu;
+    strata::dsp::MeterSnapshot outMeters;
 
     // cached atomic param pointers (set in ctor, read on audio thread)
     std::atomic<float>* pInGain   = nullptr;
@@ -111,6 +107,7 @@ private:
     std::atomic<float>* pMonitor  = nullptr;
 
     double currentSampleRate = 48000.0;
+    int    clipHoldSamples = 120000; // ~2.5 s; set in prepareToPlay
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (StrataProcessor)
 };

@@ -48,18 +48,6 @@ StrataEditor::StrataEditor (StrataProcessor& p)
             cal->setValueNotifyingHost (proc.apvts.getParameterRange (params::vuCal).convertTo0to1 (refDb));
     };
 
-    // IN / GR / OUT meter-source buttons (radio).
-    for (auto* b : { &inBtn, &grBtn, &outBtn })
-    {
-        b->setClickingTogglesState (true);
-        b->setColour (juce::TextButton::buttonOnColourId, juce::Colour (ui::Theme::accent));
-        addAndMakeVisible (*b);
-    }
-    inBtn .onClick = [this] { setMeterSource (0); };
-    grBtn .onClick = [this] { setMeterSource (1); };
-    outBtn.onClick = [this] { setMeterSource (2); };
-    grBtn.setEnabled (false); // enabled once compression exists
-    setMeterSource (0);
 
     // ---- Channel name (editable) ----
     nameLabel.setText (proc.getInstanceName(), juce::dontSendNotification);
@@ -103,28 +91,11 @@ StrataEditor::~StrataEditor()
 
 void StrataEditor::timerCallback()
 {
-    const float ref = proc.getVuReferenceDb();
-    const float off = proc.getMeterOffsetDb();
-    const auto  lbl = meterSource == 1 ? juce::String ("GR")
-                                       : params::meterTypeLabel (proc.getMeterType());
-    meter.setScale (lbl, ref, off);
+    meter.setScale (params::meterTypeLabel (proc.getMeterType()),
+                    proc.getVuReferenceDb(), proc.getMeterOffsetDb());
 
-    if (meterSource == 1) // GR — no compressor yet, show no reduction
-    {
-        meter.setValues (-100.0f, -100.0f, -100.0f, false);
-        return;
-    }
-
-    auto& s = (meterSource == 2) ? proc.getOutputMeters() : proc.getInputMeters();
+    auto& s = proc.getOutputMeters(); // the meter shows what leaves the plugin
     meter.setValues (s.rmsDb.load(), s.peakDb.load(), s.peakHold.load(), s.clip.load());
-}
-
-void StrataEditor::setMeterSource (int s)
-{
-    meterSource = s;
-    inBtn .setToggleState (s == 0, juce::dontSendNotification);
-    grBtn .setToggleState (s == 1, juce::dontSendNotification);
-    outBtn.setToggleState (s == 2, juce::dontSendNotification);
 }
 
 void StrataEditor::refreshLinkPanel()
@@ -167,7 +138,6 @@ void StrataEditor::setChannelViewMode (bool on)
     monoBtn.setVisible (strip);   phaseBtn.setVisible (strip);
     meterTypeBox.setVisible (strip); monitorBox.setVisible (strip); groupBox.setVisible (strip);
     meter.setVisible (strip);
-    inBtn.setVisible (strip); grBtn.setVisible (strip); outBtn.setVisible (strip);
     channelView.setVisible (on);
 
     if (on && getWidth() < 640)
@@ -194,18 +164,10 @@ void StrataEditor::layoutStrip (juce::Rectangle<int> r)
     nameLabel.setBounds (r.removeFromTop (24));
     r.removeFromTop (6);
 
-    // single meter
-    meter.setBounds (r.removeFromTop (juce::roundToInt ((float) r.getHeight() * 0.40f)).reduced (3));
+    // single meter (plugin output)
+    meter.setBounds (r.removeFromTop (juce::roundToInt ((float) r.getHeight() * 0.42f)).reduced (3));
 
-    // IN / GR / OUT source buttons
-    r.removeFromTop (6);
-    auto srcRow = r.removeFromTop (22);
-    const int sw = srcRow.getWidth() / 3;
-    inBtn .setBounds (srcRow.removeFromLeft (sw).reduced (2, 0));
-    grBtn .setBounds (srcRow.removeFromLeft (sw).reduced (2, 0));
-    outBtn.setBounds (srcRow.reduced (2, 0));
-
-    r.removeFromTop (6);
+    r.removeFromTop (8);
     auto meterRow = r.removeFromTop (24); // meter type + monitor selectors
     meterTypeBox.setBounds (meterRow.removeFromLeft (meterRow.getWidth() / 2).reduced (2, 0));
     monitorBox  .setBounds (meterRow.reduced (2, 0));
