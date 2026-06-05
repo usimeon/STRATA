@@ -1,5 +1,6 @@
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <BinaryData.h>
 #include "LookAndFeel.h"
 
 /*  Classic analog-style VU meter (cream dial, ink scale, black needle, red
@@ -21,7 +22,7 @@ namespace strata::ui
             static constexpr juce::uint32 bezel   = 0xff0d0d0f;
             static constexpr juce::uint32 creamHi = 0xfff3ecd9;
             static constexpr juce::uint32 creamLo = 0xffd8cdb0;
-            static constexpr juce::uint32 ink     = 0xff2c2822;
+            static constexpr juce::uint32 ink     = 0xff1b1814;
             static constexpr juce::uint32 inkDim  = 0xff6b6354;
             static constexpr juce::uint32 red     = 0xffb23a2c;
             static constexpr juce::uint32 needle  = 0xff1b1814;
@@ -63,7 +64,7 @@ namespace strata::ui
             const float vuDb = (rmsDb + scaleOffset) - referenceDb; // 0 VU at refDb
             needle = tForVu (juce::jlimit (-20.0f, 3.0f, vuDb));
             if (needle > holdNeedle) holdNeedle = needle;            // latched VU hold
-            peak = peakDb; hold = peakHoldDb; clipped = clip;
+            peak = peakDb; hold = peakHoldDb; clipped = clip; rms = rmsDb;
             repaint();
         }
 
@@ -97,45 +98,91 @@ namespace strata::ui
 
         void paint (juce::Graphics& g) override
         {
+            // Load the VU face photo once (JUCE ImageCache keeps it alive)
+            static const juce::Image faceImg = juce::ImageCache::getFromMemory (
+                BinaryData::vu_face_png, BinaryData::vu_face_pngSize);
+
             auto full = getLocalBounds().toFloat();
 
-            // bezel
+            // ── Bezel ─────────────────────────────────────────────────────────
             g.setColour (juce::Colour (Face::bezel));
             g.fillRoundedRectangle (full, compact ? 4.0f : 7.0f);
 
-            // cream dial face (top-to-bottom gradient like a real meter face)
             auto face = full.reduced (compact ? 2.0f : 4.0f);
-            g.setGradientFill (juce::ColourGradient (
-                juce::Colour (Face::creamHi), face.getCentreX(), face.getY(),
-                juce::Colour (Face::creamLo), face.getCentreX(), face.getBottom(), false));
-            g.fillRoundedRectangle (face, compact ? 3.0f : 5.0f);
-            g.setColour (juce::Colours::black.withAlpha (0.22f));
-            g.drawRoundedRectangle (face.reduced (0.6f), compact ? 3.0f : 5.0f, 1.0f);
 
-            auto area = face.reduced (compact ? 4.0f : 8.0f);
-
-            // Bottom rows — carved BEFORE the arc so nothing overlaps.
-            juce::Rectangle<float> readoutRow;
-            if (! compact) readoutRow = area.removeFromBottom (12.0f);
-            auto peakRow = area.removeFromBottom (compact ? 5.0f : 7.0f);
-            area.removeFromBottom (compact ? 1.0f : 3.0f);
-
-            drawArcScale (g, area);
-            drawHoldNeedle (g, area);
-            drawNeedle (g, area);
-            drawPeakBar (g, peakRow);
-            drawLed (g, face);
-
-            // Numeric readouts (full size only)
-            if (! compact)
+            if (! compact && faceImg.isValid())
             {
-                g.setColour (juce::Colour (Face::inkDim));
-                g.setFont (juce::Font (juce::FontOptions (9.0f)));
-                g.drawText (peak <= -99.0f ? "-inf" : juce::String (peak, 1) + " dB",
-                            readoutRow.removeFromLeft (readoutRow.getWidth() * 0.5f),
-                            juce::Justification::centredLeft);
-                g.drawText ("0VU=" + juce::String (referenceDb, 0),
-                            readoutRow, juce::Justification::centredRight);
+                // ── IMAGE PATH — full-size meter with photo face ───────────────
+                // Draw the photo face stretched to fill (aspect ratio of face
+                // ~1.87 vs image 1.57 — slight horizontal stretch is acceptable).
+                {
+                    juce::Path clip;
+                    clip.addRoundedRectangle (face, 5.0f);
+                    juce::Graphics::ScopedSaveState ss (g);
+                    g.reduceClipRegion (clip);
+                    g.drawImage (faceImg, face, juce::RectanglePlacement::stretchToFit);
+                }
+
+                // Subtle inner shadow at bezel edge (depth)
+                g.setColour (juce::Colours::black.withAlpha (0.18f));
+                g.drawRoundedRectangle (face.reduced (0.6f), 5.0f, 1.5f);
+
+                // Needle, hold-needle, LED — all calibrated to image geometry
+                drawNeedleOnImage (g, face);
+                drawLed (g, face);
+
+                // Peak bar pinned to the image face bottom
+                auto peakRow = face.withTrimmedTop (face.getHeight() - 7.0f);
+                drawPeakBar (g, peakRow);
+
+                // Readouts — drawn in the lower region over the image
+                {
+                    auto rb = face.reduced (12.0f, 6.0f)
+                                  .withHeight (20.0f)
+                                  .withY (face.getBottom() - 28.0f);
+                    g.setColour (juce::Colour (Face::ink));
+                    g.setFont (juce::Font (juce::FontOptions (16.0f, juce::Font::bold)));
+                    g.drawText (peak <= -99.0f ? "-inf" : juce::String (peak, 1) + " dB",
+                                rb, juce::Justification::bottomLeft);
+                    g.drawText (rms  <= -99.0f ? "-inf" : juce::String (rms,  1) + " dB",
+                                rb, juce::Justification::bottomRight);
+                }
+            }
+            else
+            {
+                // ── PROGRAMMATIC PATH — compact mode or image unavailable ─────
+                g.setGradientFill (juce::ColourGradient (
+                    juce::Colour (Face::creamHi), face.getCentreX(), face.getY(),
+                    juce::Colour (Face::creamLo), face.getCentreX(), face.getBottom(), false));
+                g.fillRoundedRectangle (face, compact ? 3.0f : 5.0f);
+                g.setColour (juce::Colours::black.withAlpha (0.22f));
+                g.drawRoundedRectangle (face.reduced (0.6f), compact ? 3.0f : 5.0f, 1.0f);
+
+                auto area = face.reduced (compact ? 4.0f : 8.0f);
+
+                juce::Rectangle<float> readoutRow;
+                if (! compact) readoutRow = area.removeFromBottom (12.0f);
+                auto peakRow = area.removeFromBottom (compact ? 5.0f : 7.0f);
+                area.removeFromBottom (compact ? 1.0f : 3.0f);
+
+                drawArcScale     (g, area);
+                drawHoldNeedle   (g, area);
+                drawNeedle       (g, area);
+                drawPeakBar      (g, peakRow);
+                drawLed          (g, face);
+
+                if (! compact)
+                {
+                    g.setColour (juce::Colour (Face::ink));
+                    g.setFont (juce::Font (juce::FontOptions (18.0f, juce::Font::bold)));
+                    auto rb = face.reduced (12.0f, 8.0f)
+                                  .withHeight (24.0f)
+                                  .withY (face.getBottom() - 32.0f);
+                    g.drawText (peak <= -99.0f ? "-inf" : juce::String (peak, 1),
+                                rb, juce::Justification::bottomLeft);
+                    g.drawText (rms  <= -99.0f ? "-inf" : juce::String (rms,  1),
+                                rb, juce::Justification::bottomRight);
+                }
             }
         }
 
@@ -151,6 +198,70 @@ namespace strata::ui
             const float numMargin = compact ? 9.0f : 16.0f;
             radiusOut = juce::jmin (r.getWidth() * 0.46f, r.getHeight() * 0.92f) - numMargin;
             return { r.getCentreX(), r.getBottom() - r.getHeight() * 0.08f };
+        }
+
+        // ── Image-calibrated needle ───────────────────────────────────────────
+        // Geometry derived by measuring the 606×386 vu_face.png:
+        //   pivot (px):  x = 303 (image centre),  y = 401 (15 px below image bottom)
+        //   arc radius:  332 px in image space
+        // Scale factors are applied so the needle always tracks the printed
+        // scale regardless of the rendered component size.
+        void drawNeedleOnImage (juce::Graphics& g, juce::Rectangle<float> face)
+        {
+            static constexpr float kImgW = 606.0f, kImgH = 386.0f;
+            static constexpr float kPivX = 303.0f, kPivY = 401.0f;
+            static constexpr float kR    = 332.0f;
+
+            const float sx = face.getWidth()  / kImgW;
+            const float sy = face.getHeight() / kImgH;
+
+            // Pivot and needle tip in face coordinates
+            const float ang  = angleFor (needle);
+            const float pivX = face.getX() + kPivX * sx;
+            const float pivY = face.getY() + kPivY * sy;   // may be slightly below face
+            const float tipX = face.getX() + (kPivX + kR * std::sin (ang)) * sx;
+            const float tipY = face.getY() + (kPivY - kR * std::cos (ang)) * sy;
+
+            // Tapered needle path (wide at pivot, fine at tip)
+            const float dx = tipX - pivX, dy = tipY - pivY;
+            const float len = std::hypot (dx, dy);
+            if (len < 1.0f) return;
+            const float px = -dy / len, py = dx / len;   // perpendicular unit
+            const float bw = 4.0f, tw = 0.7f;
+
+            juce::Path np;
+            np.startNewSubPath (pivX - px * bw, pivY - py * bw);
+            np.lineTo (tipX  - px * tw, tipY  - py * tw);
+            np.lineTo (tipX  + px * tw, tipY  + py * tw);
+            np.lineTo (pivX  + px * bw, pivY  + py * bw);
+            np.closeSubPath();
+
+            g.setColour (juce::Colours::black.withAlpha (0.22f));
+            g.fillPath (np, juce::AffineTransform::translation (0.8f, 1.0f));
+            g.setColour (juce::Colour (clipped ? Face::ledOn : Face::needle));
+            g.fillPath (np);
+
+            // Peak-hold needle (orange thin line)
+            if (holdNeedle > 0.001f)
+            {
+                const float ha  = angleFor (holdNeedle);
+                const float htX = face.getX() + (kPivX + kR * std::sin (ha)) * sx;
+                const float htY = face.getY() + (kPivY - kR * std::cos (ha)) * sy;
+                // draw only the outer 45 % of the needle length
+                const float t = 0.55f;
+                g.setColour (juce::Colour (Face::hold));
+                g.drawLine (pivX + (htX - pivX) * t, pivY + (htY - pivY) * t,
+                            htX, htY, 1.8f);
+            }
+
+            // Hub — clamped so it's always just inside the face bottom edge
+            const float hub  = 9.0f;
+            const float hubY = juce::jmin (pivY, face.getBottom() - hub * 0.55f);
+            g.setColour (juce::Colour (Face::ink));
+            g.fillEllipse (juce::Rectangle<float> (hub, hub).withCentre ({ pivX, hubY }));
+            g.setColour (juce::Colour (0xffd4c8aa));
+            g.fillEllipse (juce::Rectangle<float> (hub * 0.42f, hub * 0.42f)
+                               .withCentre ({ pivX - hub * 0.12f, hubY - hub * 0.12f }));
         }
 
         void drawArcScale (juce::Graphics& g, juce::Rectangle<float> r)
@@ -243,13 +354,31 @@ namespace strata::ui
         void drawNeedle (juce::Graphics& g, juce::Rectangle<float> r)
         {
             float radius; const auto c = pivot (r, radius);
-            const auto tip = c.getPointOnCircumference (radius - 2.0f, angleFor (needle));
+            const auto tipC = c.getPointOnCircumference (radius - 2.0f, angleFor (needle));
+            
+            juce::Path nPath;
+            const float baseW = compact ? 2.5f : 4.0f;
+            const float tipW  = compact ? 0.8f : 1.2f;
+            const float dx = tipC.x - c.x;
+            const float dy = tipC.y - c.y;
+            const float len = std::hypot (dx, dy);
+            const float px = -dy / len;
+            const float py = dx / len;
+            
+            nPath.startNewSubPath (c.x - px * baseW, c.y - py * baseW);
+            nPath.lineTo (tipC.x - px * tipW, tipC.y - py * tipW);
+            nPath.lineTo (tipC.x + px * tipW, tipC.y + py * tipW);
+            nPath.lineTo (c.x + px * baseW, c.y + py * baseW);
+            nPath.closeSubPath();
+
             // subtle drop shadow
             g.setColour (juce::Colours::black.withAlpha (0.18f));
-            g.drawLine ({ c.translated (0.8f, 0.8f), tip.translated (0.8f, 0.8f) }, compact ? 1.6f : 2.2f);
+            g.fillPath (nPath, juce::AffineTransform::translation (0.8f, 0.8f));
+            
             // needle (turns red while clip is latched)
             g.setColour (juce::Colour (clipped ? Face::red : Face::needle));
-            g.drawLine ({ c, tip }, compact ? 1.6f : 2.2f);
+            g.fillPath (nPath);
+            
             // pivot hub
             const float hub = compact ? 5.0f : 8.0f;
             g.setColour (juce::Colour (Face::ink));
@@ -297,7 +426,7 @@ namespace strata::ui
 
         juce::String label = "VU";
         float referenceDb = -24.0f, scaleOffset = 0.0f, dragStartRef = -24.0f;
-        float needle = 0.0f, holdNeedle = 0.0f, peak = -100.0f, hold = -100.0f;
+        float needle = 0.0f, holdNeedle = 0.0f, peak = -100.0f, hold = -100.0f, rms = -100.0f;
         bool  clipped = false, compact = false, dragged = false;
     };
 }

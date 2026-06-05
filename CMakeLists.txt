@@ -15,6 +15,17 @@ add_subdirectory(JUCE)
 # FetchContent_Declare(JUCE GIT_REPOSITORY https://github.com/juce-framework/JUCE.git GIT_TAG 8.0.4)
 # FetchContent_MakeAvailable(JUCE)
 
+# ---------------------------------------------------------------------------
+# Embedded image / asset resources (BinaryData.h generated at build time)
+# ---------------------------------------------------------------------------
+juce_add_binary_data(StrataAssets
+    HEADER_NAME BinaryData.h
+    NAMESPACE   BinaryData
+    SOURCES
+        Resources/vu_face.png      # VU meter face image  (606×386)
+        Resources/knob_cap.png     # Brushed-metal knob cap texture (84×142)
+)
+
 juce_add_plugin(STRATA
     COMPANY_NAME            "MyGAin"
     BUNDLE_ID               "com.mygain.strata"
@@ -46,6 +57,7 @@ target_compile_definitions(STRATA PUBLIC
     JUCE_REPORT_APP_USAGE=0)
 
 target_link_libraries(STRATA PRIVATE
+    StrataAssets
     juce::juce_audio_utils
     juce::juce_dsp
     PUBLIC
