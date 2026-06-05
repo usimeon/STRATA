@@ -22,8 +22,8 @@ juce_add_binary_data(StrataAssets
     HEADER_NAME BinaryData.h
     NAMESPACE   BinaryData
     SOURCES
-        Resources/vu_face.png      # VU meter face image  (606×386)
-        Resources/knob_cap.png     # Brushed-metal knob cap texture (84×142)
+        Resources/vu_face.jpg      # VU meter face image  (1000×570)
+        Resources/knob.png         # Knob filmstrip 64×1088  (17 frames × 64px)
 )
 
 juce_add_plugin(STRATA

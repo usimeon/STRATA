@@ -30,29 +30,28 @@ namespace strata::ui
             setColour (juce::Label::textColourId,                 juce::Colour (Theme::text));
             setDefaultSansSerifTypefaceName ("Inter");
 
-            // Load the brushed-metal knob cap texture once
-            capImage = juce::ImageCache::getFromMemory (
-                BinaryData::knob_cap_png, BinaryData::knob_cap_pngSize);
+            // Load the knob filmstrip once (64×1088, 17 frames of 64×64)
+            knobStrip = juce::ImageCache::getFromMemory (
+                BinaryData::knob_png, BinaryData::knob_pngSize);
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // Rotary knob — photorealistic brushed-metal body + teal value arc
+        // Rotary knob — filmstrip + teal value arc
+        // Strip is 64×1088 px: 17 frames × 64 px, min→max rotation top→bottom.
         // ─────────────────────────────────────────────────────────────────────
         void drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h,
                                float pos, float startAngle, float endAngle,
                                juce::Slider&) override
         {
-            // Leave a margin so the value arc doesn't clip the text box area
             auto bounds = juce::Rectangle<float> ((float)x, (float)y, (float)w, (float)h)
                               .reduced (4.0f);
             const float diameter = juce::jmin (bounds.getWidth(), bounds.getHeight());
             bounds = bounds.withSizeKeepingCentre (diameter, diameter);
             const auto  centre = bounds.getCentre();
             const float radius = diameter * 0.5f;
-            const float angle  = startAngle + pos * (endAngle - startAngle);
 
             // ── Value track (full range, dark) ────────────────────────────────
-            const float trackR = radius - 4.0f;
+            const float trackR = radius - 2.0f;
             juce::Path track;
             track.addCentredArc (centre.x, centre.y, trackR, trackR, 0.0f,
                                  startAngle, endAngle, true);
@@ -61,9 +60,10 @@ namespace strata::ui
                                   juce::PathStrokeType::curved,
                                   juce::PathStrokeType::rounded));
 
-            // ── Value arc (teal, filled from start to current) ─────────────────
+            // ── Teal value arc ────────────────────────────────────────────────
             if (pos > 0.005f)
             {
+                const float angle = startAngle + pos * (endAngle - startAngle);
                 juce::Path varc;
                 varc.addCentredArc (centre.x, centre.y, trackR, trackR, 0.0f,
                                     startAngle, angle, true);
@@ -73,93 +73,41 @@ namespace strata::ui
                                     juce::PathStrokeType::rounded));
             }
 
-            // ── Knob body ─────────────────────────────────────────────────────
-            auto body = bounds.reduced (10.0f);
-
-            // Soft drop shadow (layered translucent ellipses offset down)
-            for (float s = 4.0f; s >= 1.0f; s -= 1.0f)
+            // ── Filmstrip knob body ───────────────────────────────────────────
+            if (knobStrip.isValid())
             {
-                g.setColour (juce::Colours::black.withAlpha (0.12f));
-                g.fillEllipse (body.translated (0.0f, s));
-            }
+                const int frameW    = knobStrip.getWidth();            // 64
+                const int numFrames = knobStrip.getHeight() / frameW;  // 17
+                const int frame     = juce::roundToInt (pos * (float)(numFrames - 1));
+                const int srcY      = frame * frameW;
 
+                // Scale strip frame to fill the rotary bounds
+                g.drawImage (knobStrip,
+                             (int) bounds.getX(),  (int) bounds.getY(),
+                             (int) bounds.getWidth(), (int) bounds.getHeight(),
+                             0, srcY, frameW, frameW);
+            }
+            else
             {
-                juce::Path circle;
-                circle.addEllipse (body);
-                juce::Graphics::ScopedSaveState ss (g);
-                g.reduceClipRegion (circle);
-
-                // Brushed-metal cap texture (non-rotating — looks like machined aluminium)
-                if (capImage.isValid())
-                {
-                    g.drawImage (capImage, body, juce::RectanglePlacement::fillDestination);
-                }
-                else
-                {
-                    // Fallback: premium diagonal gradient
-                    juce::ColourGradient metal (
-                        juce::Colour (0xffe4e4e8),
-                        body.getX()   + body.getWidth()  * 0.25f,
-                        body.getY()   + body.getHeight() * 0.15f,
-                        juce::Colour (0xff6a6a72),
-                        body.getRight() - body.getWidth()  * 0.2f,
-                        body.getBottom() - body.getHeight() * 0.15f, false);
-                    g.setGradientFill (metal);
-                    g.fillEllipse (body);
-                }
-
-                // Specular highlight — bright soft spot top-left (light source)
-                juce::ColourGradient spec (
-                    juce::Colours::white.withAlpha (0.45f),
-                    body.getX()   + body.getWidth()  * 0.28f,
-                    body.getY()   + body.getHeight() * 0.18f,
-                    juce::Colours::transparentBlack,
-                    body.getCentreX(), body.getCentreY(), true);
-                g.setGradientFill (spec);
+                // Fallback: rendered gradient knob
+                auto body = bounds.reduced (8.0f);
+                juce::ColourGradient metal (
+                    juce::Colour (0xffe0e0e4), body.getX() + body.getWidth() * 0.25f,
+                                               body.getY() + body.getHeight() * 0.2f,
+                    juce::Colour (0xff606068), body.getCentreX(), body.getBottom(), false);
+                g.setGradientFill (metal);
                 g.fillEllipse (body);
-
-                // Bottom darkening — ambient occlusion / curvature shadow
-                juce::ColourGradient dark (
-                    juce::Colours::transparentBlack,
-                    body.getCentreX(), body.getCentreY() - body.getHeight() * 0.1f,
-                    juce::Colours::black.withAlpha (0.32f),
-                    body.getCentreX(), body.getBottom(), false);
-                g.setGradientFill (dark);
-                g.fillEllipse (body);
+                g.setColour (juce::Colours::black.withAlpha (0.5f));
+                g.drawEllipse (body, 1.0f);
+                const float angle = startAngle + pos * (endAngle - startAngle);
+                const auto  tip   = centre.getPointOnCircumference (body.getWidth() * 0.5f - 5.0f, angle);
+                const auto  base  = centre.getPointOnCircumference (body.getWidth() * 0.15f, angle);
+                g.setColour (juce::Colours::white.withAlpha (0.9f));
+                g.drawLine (base.x, base.y, tip.x, tip.y, 2.5f);
             }
-
-            // Rim: bright top bevel + dark bottom bevel (one-pixel each)
-            g.setColour (juce::Colours::white.withAlpha (0.28f));
-            g.drawEllipse (body.reduced (0.5f), 1.0f);
-            g.setColour (juce::Colours::black.withAlpha (0.55f));
-            g.drawEllipse (body.expanded (0.5f), 1.0f);
-
-            // ── Pointer ───────────────────────────────────────────────────────
-            const float pRadius = body.getWidth() * 0.5f;
-            const auto  pTip    = centre.getPointOnCircumference (pRadius - 5.0f,  angle);
-            const auto  pBase   = centre.getPointOnCircumference (pRadius * 0.28f, angle);
-
-            // Pointer shadow
-            g.setColour (juce::Colours::black.withAlpha (0.45f));
-            g.drawLine (pBase.x + 0.7f, pBase.y + 1.2f,
-                        pTip.x  + 0.7f, pTip.y  + 1.2f, 3.0f);
-            // Pointer line
-            g.setColour (juce::Colour (0xff1b1814));
-            g.drawLine (pBase.x, pBase.y, pTip.x, pTip.y, 2.5f);
-            // Bright tip dot
-            g.setColour (juce::Colours::white.withAlpha (0.85f));
-            g.fillEllipse (juce::Rectangle<float> (4.5f, 4.5f).withCentre (pTip));
-
-            // ── Centre hub cap ─────────────────────────────────────────────────
-            const float hubR = body.getWidth() * 0.11f;
-            g.setColour (juce::Colour (0xff26262c));
-            g.fillEllipse (juce::Rectangle<float> (hubR * 2, hubR * 2).withCentre (centre));
-            g.setColour (juce::Colours::white.withAlpha (0.18f));
-            g.fillEllipse (juce::Rectangle<float> (hubR, hubR)
-                               .withCentre (centre.translated (-hubR * 0.15f, -hubR * 0.18f)));
         }
 
     private:
-        juce::Image capImage;
+        juce::Image knobStrip;
     };
 }

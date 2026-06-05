@@ -100,7 +100,7 @@ namespace strata::ui
         {
             // Load the VU face photo once (JUCE ImageCache keeps it alive)
             static const juce::Image faceImg = juce::ImageCache::getFromMemory (
-                BinaryData::vu_face_png, BinaryData::vu_face_pngSize);
+                BinaryData::vu_face_jpg, BinaryData::vu_face_jpgSize);
 
             auto full = getLocalBounds().toFloat();
 
@@ -201,16 +201,22 @@ namespace strata::ui
         }
 
         // ── Image-calibrated needle ───────────────────────────────────────────
-        // Geometry derived by measuring the 606×386 vu_face.png:
-        //   pivot (px):  x = 303 (image centre),  y = 401 (15 px below image bottom)
-        //   arc radius:  332 px in image space
-        // Scale factors are applied so the needle always tracks the printed
-        // scale regardless of the rendered component size.
+        // Calibrated to the generated 1000×570 vu_face.jpg.
+        // Derived from the visible scale-mark positions in the image:
+        //   −20 VU → ( 65, 260)   0 VU → (695, 85)   +3 VU → (935, 260)
+        //
+        //   Canvas size : 1000 × 570 px
+        //   Pivot       : (500, 590)   — centre, 20 px below image bottom
+        //   Arc radius  : 546 px
+        //   Arc span    : −52.7° … +52.7° from 12 o'clock (kA0 … kA1)
+        //
+        //   Clip LED image position: (950, 58) → align software LED here.
+        //   Bottom 90 px of image are the readout zone — left clean in image.
         void drawNeedleOnImage (juce::Graphics& g, juce::Rectangle<float> face)
         {
-            static constexpr float kImgW = 606.0f, kImgH = 386.0f;
-            static constexpr float kPivX = 303.0f, kPivY = 401.0f;
-            static constexpr float kR    = 332.0f;
+            static constexpr float kImgW = 1000.0f, kImgH = 570.0f;
+            static constexpr float kPivX = 500.0f,  kPivY = 590.0f;
+            static constexpr float kR    = 546.0f;
 
             const float sx = face.getWidth()  / kImgW;
             const float sy = face.getHeight() / kImgH;
@@ -414,7 +420,13 @@ namespace strata::ui
         void drawLed (juce::Graphics& g, juce::Rectangle<float> face)
         {
             const float d = compact ? 5.0f : 7.0f;
-            auto led = juce::Rectangle<float> (d, d).withCentre ({ face.getRight() - d, face.getY() + d });
+            // In full-size image mode: align LED with the printed indicator at
+            // (950, 58) in the 1000×570 image space.
+            const juce::Point<float> ledCentre = (! compact)
+                ? juce::Point<float> (face.getX() + face.getWidth()  * (950.0f / 1000.0f),
+                                      face.getY() + face.getHeight() * ( 58.0f /  570.0f))
+                : juce::Point<float> (face.getRight() - d, face.getY() + d);
+            auto led = juce::Rectangle<float> (d, d).withCentre (ledCentre);
             g.setColour (juce::Colour (clipped ? Face::ledOn : Face::ledOff));
             g.fillEllipse (led);
             if (clipped)
